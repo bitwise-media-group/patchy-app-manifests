@@ -1,0 +1,19 @@
+# Copyright 2026 BitWise Media Group Ltd
+# SPDX-License-Identifier: MIT
+#
+# The cloud-neutral core of the patchy deployment: namespaces, the chart
+# releases (input-provider + resourceset), the dex clients
+# (resourceset-dex, dex clusters only), the RBAC bindings onto the
+# platform's RBAC_GROUP_* groups, and the image-verification policy for
+# patchy's own ghcr images. The per-cloud overlays (../aws, ../google) add
+# the secret syncs in their cloud's dialect and include ../../flux, the
+# image's self-definition.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - input-provider.yaml
+  - resourceset.yaml
+  - resourceset-dex.yaml
+  - rbac.yaml
+  - policy.yaml

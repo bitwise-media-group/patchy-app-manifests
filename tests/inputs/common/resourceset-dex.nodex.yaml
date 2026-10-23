@@ -1,0 +1,6 @@
+# Copyright 2026 BitWise Media Group Ltd
+# SPDX-License-Identifier: MIT
+
+# No dex: the DexClient CRD does not exist, so nothing may render.
+- components: flux-web
+  evaluation: "true"

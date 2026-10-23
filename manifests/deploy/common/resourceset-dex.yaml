@@ -1,0 +1,78 @@
+# Copyright 2026 BitWise Media Group Ltd
+# SPDX-License-Identifier: MIT
+
+# patchy's dex clients, registered by the platform's dex-client-controller
+# rather than by terraform: each DexClient lands in dex through its gRPC API,
+# and a confidential one gets a generated client secret in a Secret beside
+# it (<name>-dex-client: clientID, clientSecret, issuer). Nothing touches a
+# cloud secret store or a cluster apply.
+#
+# Gated on dex being elected in PLATFORM_COMPONENTS: on a dex-less cluster
+# the DexClient CRD does not exist, so the objects ride a ResourceSet
+# template that renders nothing there. On a dex cluster the seeded
+# Kustomization depends on the dex Kustomization (../../flux), which is only
+# Ready once the controller has installed the CRDs.
+#
+# Client ids default to <namespace>-<name>, so status is patchy-status (the
+# id the cluster module used to mint) and evolve is patchy-evolve. The
+# platform's kyverno policy holds any explicit clientID to the same
+# <namespace>- prefix, so ids are left to the default.
+#
+#   - status: the status server's confidential client. Its auth config
+#     (config.yaml, secretless) is the ConfigMap below; resourceset.yaml
+#     projects it and the generated status-dex-client Secret into the
+#     server's auth mount, so clientSecretFile finds the client-secret key
+#     beside config.yaml. Rotate by deleting status-dex-client (the
+#     controller regenerates it and replaces the client in dex), then
+#     restarting the status server.
+#   - evolve: the evaluation API's PUBLIC client (authorization-code +
+#     PKCE): no secret and no redirect URIs - dex admits loopback redirects
+#     on any port for public clients, which is what a CLI's ephemeral local
+#     callback server needs. evolve learns the id from the API's
+#     /api/v1/auth/info, so it is never configured client-side.
+apiVersion: fluxcd.controlplane.io/v1
+kind: ResourceSet
+metadata:
+  name: patchy-dex
+  namespace: patchy
+spec:
+  inputs:
+    - components: "${PLATFORM_COMPONENTS}"
+      evaluation: "${PATCHY_EVALUATION:=false}"
+  resourcesTemplate: |
+    << if has "dex" (splitList "," inputs.components) >>
+    ---
+    apiVersion: dex.bitwisemedia.uk/v1alpha1
+    kind: DexClient
+    metadata:
+      name: status
+      namespace: patchy
+    spec:
+      name: Patchy Status
+      redirectURIs:
+        - https://status.${PATCHY_DOMAIN}/oauth2/callback
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: patchy-status-auth
+      namespace: patchy
+    data:
+      config.yaml: |
+        mode: oidc
+        oidc:
+          issuerURL: https://dex.${PLATFORM_DOMAIN}
+          clientID: patchy-status
+          clientSecretFile: /etc/patchy/auth/client-secret
+    << if eq inputs.evaluation "true" >>
+    ---
+    apiVersion: dex.bitwisemedia.uk/v1alpha1
+    kind: DexClient
+    metadata:
+      name: evolve
+      namespace: patchy
+    spec:
+      name: Evolve
+      public: true
+    << end >>
+    << end >>

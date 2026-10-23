@@ -1,0 +1,7 @@
+# Copyright 2026 BitWise Media Group Ltd
+# SPDX-License-Identifier: MIT
+
+# dex and the evaluation controller elected: both DexClients and the status
+# server's auth ConfigMap render - the widest render.
+- components: dex,flux-web
+  evaluation: "true"

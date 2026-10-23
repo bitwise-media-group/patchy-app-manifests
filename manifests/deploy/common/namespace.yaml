@@ -1,0 +1,28 @@
+# Copyright 2026 BitWise Media Group Ltd
+# SPDX-License-Identifier: MIT
+
+# Both namespaces are pre-created by terraform (modules/aws or
+# modules/google, as part of the application-patchy-inputs release) so secrets
+# can land before patchy deploys; this image adopts them via server-side
+# apply to stamp the labels. The chart is told createNamespace: false, so
+# the restricted Pod Security labels it would have stamped on the agent
+# sandbox land here instead.
+#
+# platform.bitwisemedia.uk/gateway-access admits the namespace's HTTPRoutes
+# to the platform Gateway's wildcard listener (its allowedRoutes selects on
+# this label) - the webhook, status and evaluation routes all live in patchy.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: patchy
+  labels:
+    platform.bitwisemedia.uk/gateway-access: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: patchy-agents
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

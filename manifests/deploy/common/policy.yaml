@@ -1,0 +1,184 @@
+# Copyright 2026 BitWise Media Group Ltd
+# SPDX-License-Identifier: MIT
+
+# Image verification for patchy's namespaces. The platform's
+# verify-platform-signature policy verifies every pod image against the
+# platform publish identity; patchy and evolve images come straight from
+# ghcr, signed by goreleaser inside the shared release workflow - a
+# different identity - so the platform rule can never pass them. Two
+# objects restore closure:
+#
+#   - a PolicyException (in the kyverno namespace, the only one kyverno
+#     admits exceptions from) that exempts pods in patchy and patchy-agents
+#     from the platform rule, and
+#   - the verify-patchy-signature ClusterPolicy below, scoped to those same
+#     namespaces, verifying the ghcr images against their own identity and
+#     everything else against the platform identity - so every image in
+#     these namespaces is still verified by exactly one rule, and the
+#     exception can never widen into "unverified".
+#
+# The ClusterPolicy rides a ResourceSet because the platform attestor SHAPE
+# follows the signing mode: keyless clusters trust the Fulcio identities,
+# KMS-keyed clusters (SIGNED_IDENTITY_KMS_KEY set) resolve the signing key
+# through the cloud KMS API at admission (the cluster module grants the
+# kyverno controllers the verify permission). The ghcr entries are keyless
+# whatever the platform's mode, so their issuer falls back to GitHub
+# Actions on keyed clusters (where SIGNED_IDENTITY_ISSUER is published
+# empty). Their Fulcio identity is the REUSABLE workflow's job_workflow_ref
+# (github-workflows, not the source repo - unlike patchy's chart, which
+# its own helm.yaml signs), pinned to releases cut from each repo via the
+# githubWorkflowRepository extension.
+#
+# type: SigstoreBundle on all rules: the publishers sign with cosign v3,
+# whose signatures are sigstore bundles attached via the OCI referrers API
+# - NOT the legacy .sig tag. The tlog entry travels inside the bundle and
+# kyverno checks it offline against the sigstore TUF trusted root; the
+# rekor.url on each keyless entry exists only because kyverno's CRD
+# validation demands rekor-or-roots on every keyless attestor regardless
+# of type. failureAction follows the platform's KYVERNO_FAILURE_ACTION so
+# the two policies soak and enforce together.
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: patchy-images
+  namespace: kyverno
+spec:
+  exceptions:
+    - policyName: verify-platform-signature
+      ruleNames:
+        - verify-platform-signature
+  match:
+    any:
+      - resources:
+          kinds:
+            - Pod
+          namespaces:
+            - patchy
+            - patchy-agents
+---
+apiVersion: fluxcd.controlplane.io/v1
+kind: ResourceSet
+metadata:
+  name: patchy-policy
+  namespace: patchy
+spec:
+  resourcesTemplate: |
+    # compared inline, not via spec.inputs: post-build substitution turns
+    # an empty input into null, the key vanishes on apply, and the
+    # template's missingkey=error fails the build
+    << $keyed := ne "${SIGNED_IDENTITY_KMS_KEY:=}" "" >>
+    ---
+    apiVersion: kyverno.io/v1
+    kind: ClusterPolicy
+    metadata:
+      name: verify-patchy-signature
+    spec:
+      webhookConfiguration:
+        failurePolicy: Fail
+        timeoutSeconds: 30
+      rules:
+        - name: verify-patchy-images
+          match:
+            any:
+              - resources:
+                  kinds:
+                    - Pod
+                  namespaces:
+                    - patchy
+                    - patchy-agents
+          verifyImages:
+            - imageReferences:
+                - "ghcr.io/bitwise-media-group/patchy/*"
+              type: SigstoreBundle
+              failureAction: "${KYVERNO_FAILURE_ACTION:=Audit}"
+              required: true
+              # Digest rewriting stays off: kyverno rejects mutateDigest
+              # under an Audit failureAction, and failureAction is
+              # var-driven, so the policy must be valid in both modes.
+              # verifyDigest follows suit - without the mutation,
+              # tag-referenced images carry no digest and would fail that
+              # check spuriously.
+              mutateDigest: false
+              verifyDigest: false
+              attestors:
+                - count: 1
+                  entries:
+                    - keyless:
+                        subjectRegExp: '${SIGNED_IDENTITY_PATCHY_IMAGES:=^https://github\.com/bitwise-media-group/github-workflows/}'
+                        issuerRegExp: '${SIGNED_IDENTITY_ISSUER:=^https://token\.actions\.githubusercontent\.com$}'
+                        additionalExtensions:
+                          githubWorkflowRepository: bitwise-media-group/patchy
+                        # satisfies CRD validation only - see header comment
+                        rekor:
+                          url: https://rekor.sigstore.dev
+        # the evolve-runner images the evaluation controller's Jobs run:
+        # evolve releases through the same reusable workflow as patchy, so
+        # the entry mirrors the one above with only the repository pin
+        # changed
+        - name: verify-evolve-images
+          match:
+            any:
+              - resources:
+                  kinds:
+                    - Pod
+                  namespaces:
+                    - patchy
+                    - patchy-agents
+          verifyImages:
+            - imageReferences:
+                - "ghcr.io/bitwise-media-group/evolve-runner-*"
+              type: SigstoreBundle
+              failureAction: "${KYVERNO_FAILURE_ACTION:=Audit}"
+              required: true
+              mutateDigest: false
+              verifyDigest: false
+              attestors:
+                - count: 1
+                  entries:
+                    - keyless:
+                        subjectRegExp: '${SIGNED_IDENTITY_PATCHY_IMAGES:=^https://github\.com/bitwise-media-group/github-workflows/}'
+                        issuerRegExp: '${SIGNED_IDENTITY_ISSUER:=^https://token\.actions\.githubusercontent\.com$}'
+                        additionalExtensions:
+                          githubWorkflowRepository: bitwise-media-group/evolve
+                        rekor:
+                          url: https://rekor.sigstore.dev
+        # Everything else in these namespaces (a sidecar, an init image,
+        # a future dependency) is held to the platform identity, exactly
+        # as the exempted platform rule would have - the exception moves
+        # the check, it does not remove it.
+        - name: verify-platform-images
+          match:
+            any:
+              - resources:
+                  kinds:
+                    - Pod
+                  namespaces:
+                    - patchy
+                    - patchy-agents
+          verifyImages:
+            - imageReferences:
+                - "*"
+              skipImageReferences:
+                - "ghcr.io/bitwise-media-group/patchy/*"
+                - "ghcr.io/bitwise-media-group/evolve-runner-*"
+              type: SigstoreBundle
+              failureAction: "${KYVERNO_FAILURE_ACTION:=Audit}"
+              required: true
+              mutateDigest: false
+              verifyDigest: false
+              attestors:
+                - count: 1
+                  entries:
+                    << if $keyed >>
+                    # Keyed: the signing key, in the cosign KMS URI scheme
+                    # of the cloud whose registry dialect the cluster
+                    # publishes (aws -> awskms, otherwise gcpkms).
+                    - keys:
+                        kms: << if eq "${OCI_PROVIDER:=gcp}" "aws" >>awskms:///${SIGNED_IDENTITY_KMS_KEY:=}<< else >>gcpkms://${SIGNED_IDENTITY_KMS_KEY:=}<< end >>
+                    << else >>
+                    - keyless:
+                        subjectRegExp: '${SIGNED_IDENTITY_IMAGES:=}'
+                        issuerRegExp: '${SIGNED_IDENTITY_ISSUER:=}'
+                        rekor:
+                          url: https://rekor.sigstore.dev
+                    << end >>

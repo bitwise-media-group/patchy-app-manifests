@@ -1,0 +1,11 @@
+# validate.sh working tree
+.build/
+
+# terraform working state (the modules are only ever init -backend=false here)
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# claude code
+/.claude/**
+!/.claude/settings.json
