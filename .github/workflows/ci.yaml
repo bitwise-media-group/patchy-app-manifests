@@ -3,10 +3,12 @@
 
 # Continuous integration — thin caller for the org's reusable ci workflow (v7+:
 # installs the mise pins). It discovers the canonical tasks this repo defines and runs
-# `make lint` / `test` as one parallel job each: lint carries license headers,
-# prose, actionlint and the kustomize config scans; test is the
+# `make lint` / `test` / `build` as one parallel job each: lint carries license
+# headers, prose, actionlint and the kustomize config scans; test is the
 # validation harness (kustomize build + cluster-vars substitution +
-# resourceset rendering + kubeconform) plus the terraform module test suites.
+# resourceset rendering + kubeconform) plus the terraform module test suites;
+# build renders the documentation site (zensical), so a broken page fails the
+# PR.
 #
 # The reusable workflow is pinned to a full commit SHA (tag in the comment) so a
 # moved tag can never change what runs; Renovate keeps the pin fresh.

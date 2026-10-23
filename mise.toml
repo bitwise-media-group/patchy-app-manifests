@@ -7,14 +7,18 @@
 # kubescape, shellcheck, actionlint, zizmor, prettier, markdownlint,
 # addlicense, ... -- and the [vars] knob defaults), and this file selects the
 # task files and pins the validation-only tools below. The repo has nothing to
-# compile, so it includes common only; the Makefile is a thin forwarder
-# (.mise/common/include.mk). The validation task surface lives in tasks.toml.
+# compile; the python archetype rides on top of common only because the repo
+# also carries its documentation site (zensical.toml + docs/, built with
+# Zensical via uv), and the Makefile is a thin forwarder
+# (.mise/archetypes/python/include.mk). The validation task surface lives in
+# tasks.toml.
 
 [task_config]
 # common (prose fmt/lint + license, container, shell and workflow lint), then
-# the repo-local validation tasks; tasks.toml is included AFTER common so its
-# same-named tasks (fmt, lint-kustomize, ci, pr) win.
-includes = [".mise/common/tasks.toml", "tasks.toml"]
+# the python archetype (docs site: sync, docs-build, serve, build), then the
+# repo-local validation tasks; tasks.toml is included LAST so its same-named
+# tasks (fmt, lint, test, lint-kustomize, ci, pr) win over both.
+includes = [".mise/common/tasks.toml", ".mise/archetypes/python/tasks.toml", "tasks.toml"]
 
 [tools]
 # Validation tools the toolchain does not pin (the same set flux-manifests

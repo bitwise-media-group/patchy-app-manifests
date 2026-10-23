@@ -267,6 +267,13 @@ client is refused by dex (static clients are read-only) and retried. Status sign
 close. Evolve users run `evolve login` once more afterwards: the evaluation API now expects tokens for `patchy-evolve`,
 not `evolve`.
 
+## Documentation
+
+The documentation site at <https://oss.bitwisemedia.uk/patchy-app-manifests/> covers installing patchy, the seed
+contract, what the image deploys and the upgrade paths, and embeds each module's README as its reference page. It is
+published by the release workflow at each release tag. Preview it with `make serve`. See
+[Working on the docs](docs/reference/docs.md).
+
 ## Caveats
 
 - **`patchy-vars` is optional to flux, required in practice.** The seed's Kustomization marks the ConfigMap

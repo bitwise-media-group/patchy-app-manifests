@@ -6,6 +6,11 @@
 *.tfstate
 *.tfstate.*
 
+# docs site (zensical) build output, cache and python env
+/site/
+/.cache/
+/.venv/
+
 # claude code
 /.claude/**
 !/.claude/settings.json

@@ -14,3 +14,7 @@ node_modules/
 
 # agent cruft
 .claude/
+
+# docs site build output
+site/
+.cache/

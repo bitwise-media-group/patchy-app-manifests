@@ -26,6 +26,8 @@ ignores:
   # the toolchain library submodule (its prose is linted in its own repo)
   - ".mise/**"
   - ".venv/**"
+  # docs site build output
+  - "site/**"
   - ".claude/**"
   # machine-written by release-please, not house prose
   - "CHANGELOG.md"

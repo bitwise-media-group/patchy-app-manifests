@@ -1,11 +1,26 @@
 # Copyright 2026 BitWise Media Group Ltd
 # SPDX-License-Identifier: MIT
 #
-# Repo-local tasks, included after the toolchain's common tasks: the
-# manifests validation harness and the terraform module test suites. lint
-# stays common's (license headers, prose, actionlint + zizmor, shell, and
-# the kustomize config scans through the lint-kustomize replacement below);
-# fmt is common's plus terraform fmt.
+# Repo-local tasks, included after the toolchain's common tasks and the
+# python archetype: the manifests validation harness and the terraform module
+# test suites. The archetype is here only for the documentation site
+# (zensical.toml + docs/): it supplies sync, docs-build, serve and build
+# (`zensical build` via uv). lint is common's (license headers, prose,
+# actionlint + zizmor, shell, and the kustomize config scans through the
+# lint-kustomize replacement below), restated so the archetype's ruff pass
+# stays out; fmt is common's plus terraform fmt.
+
+# Included after the python archetype, so this lint replaces its whole task:
+# it repeats common's rollup and nothing more (there is no python to ruff).
+[lint]
+description = "prose lint + license, container, shell and workflow checks"
+run = [
+  { task = "license-check" },
+  { task = "lint-containers" },
+  { task = "lint-shell" },
+  { task = "lint-workflows" },
+  { task = "lint-prose" },
+]
 
 [test]
 description = "render + schema-validate the manifests, then terraform test the modules"
@@ -59,11 +74,14 @@ for d in manifests/deploy/aws/ manifests/deploy/google/; do
 done
 """
 
+# build is the python archetype's: `zensical build` of the docs site, so a
+# broken page (or a module README the site embeds going missing) fails the PR.
 [ci]
 description = "the checks the reusable CI workflow runs"
-run = [{ task = "lint" }, { task = "test" }]
+run = [{ task = "lint" }, { task = "test" }, { task = "build" }]
 
-# common's pr is fmt + lint; this one adds the harness and the module tests.
+# common's pr is fmt + lint; this one adds the harness, the module tests and
+# the docs build. Like common's, it has no commit step.
 [pr]
 description = "full local gate before a pull request"
-run = [{ task = "fmt" }, { task = "lint" }, { task = "test" }]
+run = [{ task = "fmt" }, { task = "lint" }, { task = "test" }, { task = "build" }]

@@ -13,4 +13,4 @@
 # provides the pinned tools + the common lint contract (selected in the root
 # mise.toml), and tasks.toml carries the validation surface. This Makefile is
 # only the thin forwarding shim - `make <task>` == `mise run <task>`.
-include .mise/common/include.mk
+include .mise/archetypes/python/include.mk
