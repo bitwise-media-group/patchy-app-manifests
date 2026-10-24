@@ -7,7 +7,7 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = ">= 7.0, < 8.6"
+      version = ">= 7.0, < 8.9"
     }
     # The two service-identity resources ride the beta provider (a lockstep
     # superset of google): neither has been promoted to GA -- the GA provider
@@ -20,7 +20,7 @@ terraform {
     # land there.
     google-beta = {
       source  = "hashicorp/google-beta"
-      version = ">= 7.0, < 8.6"
+      version = ">= 7.0, < 8.9"
     }
   }
 }

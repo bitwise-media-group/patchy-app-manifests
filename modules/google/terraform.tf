@@ -9,7 +9,7 @@ terraform {
     # carries, so the two never disagree
     google = {
       source  = "hashicorp/google"
-      version = ">= 7.46, < 8.6"
+      version = ">= 7.46, < 8.9"
     }
     helm = {
       source  = "hashicorp/helm"
