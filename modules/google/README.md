@@ -29,20 +29,20 @@ repository README for the `patchy-vars` contract.
 | Name | Version |
 | ---- | ------- |
 | terraform | >= 1.11, < 2.0 |
-| google | >= 7.46, < 8.6 |
+| google | >= 7.46, < 8.10 |
 | helm | ~> 3.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| google | >= 7.46, < 8.6 |
+| google | >= 7.46, < 8.10 |
 
 ## Modules
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| application | git::https://github.com/bitwise-media-group/terraform-google-gke-flux.git//modules/application | 5690292e74c82b4735bb66bad2ad331a01fc0e22 |
+| application | git::https://github.com/bitwise-media-group/terraform-google-gke-flux.git//modules/application | d74b5323d24b795a644a184a57aa85ea109e3de2 |
 
 ## Resources
 

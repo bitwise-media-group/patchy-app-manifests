@@ -42,7 +42,7 @@ repository README for the `patchy-vars` contract.
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| application | git::https://github.com/bitwise-media-group/terraform-aws-eks-flux.git//modules/application | 5892b39460b33f3ac152afd1fb2f5b7758f406d0 |
+| application | git::https://github.com/bitwise-media-group/terraform-aws-eks-flux.git//modules/application | b1aa85c0553db184f6d2eb73c3403d76a9a9857b |
 
 ## Resources
 

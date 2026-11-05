@@ -165,7 +165,7 @@ data "aws_iam_policy_document" "bedrock_invoke" {
 # ConfigMap patchy-vars, roles <cluster>-<key>) is the one the manifests
 # expect.
 module "application" {
-  source = "git::https://github.com/bitwise-media-group/terraform-aws-eks-flux.git//modules/application?ref=5892b39460b33f3ac152afd1fb2f5b7758f406d0"
+  source = "git::https://github.com/bitwise-media-group/terraform-aws-eks-flux.git//modules/application?ref=b1aa85c0553db184f6d2eb73c3403d76a9a9857b"
 
   name    = "patchy"
   cluster = var.cluster
