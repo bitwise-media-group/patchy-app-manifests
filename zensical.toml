@@ -46,6 +46,7 @@ nav = [
     { "Moving out of the cluster root" = "upgrading/cluster-root.md" },
     { "From flux-manifests 3.x" = "upgrading/flux-manifests-3.md" },
     { "To DexClient" = "upgrading/dex-client.md" },
+    { "Durable credential containers" = "upgrading/durable-containers.md" },
   ] },
   { "Reference" = [
     { "Tasks & validation" = "reference/tasks.md" },
