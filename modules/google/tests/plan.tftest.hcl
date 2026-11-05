@@ -56,6 +56,95 @@ run "default_election" {
   }
 }
 
+run "default_creates_and_grants" {
+  command = plan
+
+  assert {
+    condition     = sort(keys(google_secret_manager_secret_iam_member.sync)) == sort(keys(google_secret_manager_secret.main))
+    error_message = "by default every created container carries its accessor grant, and no grant names a container the module did not create"
+  }
+
+  assert {
+    condition     = sort(keys(output.secrets)) == sort(keys(google_secret_manager_secret.main))
+    error_message = "the secrets output lists exactly the created containers"
+  }
+}
+
+run "existing_containers" {
+  command = plan
+
+  variables {
+    create_secrets = false
+    harnesses      = ["claude", "codex", "copilot"]
+    cluster = {
+      name              = "patchy-x"
+      namespace         = "flux-system"
+      platform_registry = "us-central1-docker.pkg.dev/ci-test-project/platform"
+      tree              = "google"
+      issuer            = "^https://token\\.actions\\.githubusercontent\\.com$"
+      keyed             = false
+      project           = "ci-test-project"
+      project_number    = "111111111111"
+      workload_pool     = "ci-test-project.svc.id.goog"
+      secret_prefix     = "patchy-x-"
+    }
+  }
+
+  assert {
+    condition     = length(google_secret_manager_secret.main) == 0
+    error_message = "create_secrets = false must create no containers - a durable root holds them"
+  }
+
+  assert {
+    condition = sort(keys(google_secret_manager_secret_iam_member.sync)) == tolist([
+      "patchy-anthropic-token", "patchy-copilot-token", "patchy-github-app-id", "patchy-github-app-private-key",
+      "patchy-openai-token", "patchy-webhook-secret",
+    ])
+    error_message = "the grants cover the same container set the module would create under the same elections"
+  }
+
+  assert {
+    condition = alltrue([
+      for name, member in google_secret_manager_secret_iam_member.sync :
+      member.project == "ci-test-project"
+      && member.secret_id == "patchy-x-${name}"
+      && member.role == "roles/secretmanager.secretAccessor"
+    ])
+    error_message = "each grant names the existing container <cluster.secret_prefix><name> in the cluster's project"
+  }
+
+  assert {
+    condition = (
+      endswith(google_secret_manager_secret_iam_member.sync["patchy-anthropic-token"].member, "/subject/ns/patchy/sa/patchy-secrets")
+      && endswith(google_secret_manager_secret_iam_member.sync["patchy-openai-token"].member, "/subject/ns/patchy-agents/sa/patchy-secrets")
+    )
+    error_message = "the grants bind the same sync KSAs as when the module creates the containers"
+  }
+
+  assert {
+    condition = (
+      sort(keys(output.secrets)) == sort(keys(google_secret_manager_secret_iam_member.sync))
+      && output.secrets["patchy-github-app-id"].secret_id == "patchy-x-patchy-github-app-id"
+      && output.secrets["patchy-github-app-id"].id == "projects/ci-test-project/secrets/patchy-x-patchy-github-app-id"
+    )
+    error_message = "the secrets output still lists every container name, so the durable root can create exactly that set"
+  }
+}
+
+run "existing_containers_vertex" {
+  command = plan
+
+  variables {
+    create_secrets = false
+    claude         = { provider = "vertex" }
+  }
+
+  assert {
+    condition     = sort(keys(google_secret_manager_secret_iam_member.sync)) == tolist(["patchy-github-app-id", "patchy-github-app-private-key", "patchy-webhook-secret"])
+    error_message = "the provider election gates the grant set exactly as it gates the containers: no anthropic token under vertex"
+  }
+}
+
 run "application_seed" {
   command = plan
 

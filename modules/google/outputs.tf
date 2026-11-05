@@ -24,13 +24,15 @@ output "workload_members" {
 
 output "secrets" {
   description = <<-EOT
-    The created credential containers, keyed by unprefixed name: the resource id and the (prefixed) secret id. Versions
-    are added out of band: gcloud secrets versions add <id> --data-file=-.
+    The credential containers the image syncs, keyed by unprefixed name: the resource id
+    (projects/<project>/secrets/<secret_id>) and the (prefixed) secret id. Listed whether this module created them or
+    (create_secrets = false) only granted on them, so a durable root can create exactly this set. Versions are added
+    out of band: gcloud secrets versions add <secret_id> --project <project> --data-file=-.
   EOT
   value = {
     for name in keys(local.containers) : name => {
-      id        = google_secret_manager_secret.main[name].id
-      secret_id = google_secret_manager_secret.main[name].secret_id
+      id        = var.create_secrets ? google_secret_manager_secret.main[name].id : "projects/${var.cluster.project}/secrets/${var.cluster.secret_prefix}${name}"
+      secret_id = "${var.cluster.secret_prefix}${name}"
     }
   }
 }

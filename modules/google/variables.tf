@@ -206,8 +206,22 @@ variable "extra_vars" {
   }
 }
 
+variable "create_secrets" {
+  description = <<-EOT
+    Whether this module creates the Secret Manager containers the image syncs. true (the default) creates them in
+    cluster.project, named <cluster.secret_prefix><name>, and grants the sync KSAs secretAccessor on each. false
+    creates no containers and grants on existing ones by that same name - for a durable root that keeps the
+    containers (and their out-of-band versions) across cluster rebuilds, while this disposable root makes only the
+    grants. The container set is the same either way (the secrets output lists it): the durable root must create
+    exactly those names.
+  EOT
+  type        = bool
+  nullable    = false
+  default     = true
+}
+
 variable "labels" {
-  description = "Labels applied to every secret container."
+  description = "Labels applied to every secret container this module creates (none when create_secrets is false)."
   type        = map(string)
   nullable    = false
   default     = {}

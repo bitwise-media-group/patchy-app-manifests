@@ -21,10 +21,12 @@
 #
 # The Secret Manager containers the image syncs
 # (deploy/google/resourceset-secrets.yaml) are created here in
-# cluster.project, named under cluster.secret_prefix. The read grant is
-# resource-side: GKE Integrated Secret Synchronization reads each container
-# as the sync KSA's federated principal, so every container carries a
-# secretAccessor member for the KSA that syncs it.
+# cluster.project, named under cluster.secret_prefix - unless create_secrets
+# is false, when a durable root already holds them under the same names. The
+# read grant is resource-side either way: GKE Integrated Secret
+# Synchronization reads each container as the sync KSA's federated
+# principal, so every container carries a secretAccessor member for the KSA
+# that syncs it, granted here by name.
 #
 # patchy's dex clients are not declared here: the image ships them as
 # DexClient objects (deploy/common/resourceset-dex.yaml), and the platform's
@@ -32,7 +34,8 @@
 #
 # The credential VERSIONS are added out of band (gcloud secrets versions add -
 # never terraform state), so destroying this module destroys them with the
-# containers.
+# containers when it created them; with create_secrets = false it destroys
+# only the grants.
 
 locals {
   vertex = var.claude.provider == "vertex"
@@ -86,7 +89,7 @@ locals {
 }
 
 resource "google_secret_manager_secret" "main" {
-  for_each = local.containers
+  for_each = var.create_secrets ? local.containers : {}
 
   project   = var.cluster.project
   secret_id = "${var.cluster.secret_prefix}${each.key}"
@@ -98,12 +101,14 @@ resource "google_secret_manager_secret" "main" {
 }
 
 # Accessor only: the sync KSAs read versions, nothing else. Version WRITES
-# stay a human/out-of-band concern.
+# stay a human/out-of-band concern. Keyed and addressed the same in both
+# modes; against existing containers the grant names the secret id directly
+# (its project is the cluster's, set beside it).
 resource "google_secret_manager_secret_iam_member" "sync" {
   for_each = local.containers
 
   project   = var.cluster.project
-  secret_id = google_secret_manager_secret.main[each.key].secret_id
+  secret_id = var.create_secrets ? google_secret_manager_secret.main[each.key].secret_id : "${var.cluster.secret_prefix}${each.key}"
   role      = "roles/secretmanager.secretAccessor"
   member    = "${local.wi_prefix}/${each.value}"
 }
