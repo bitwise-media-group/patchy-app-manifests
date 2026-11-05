@@ -112,7 +112,7 @@ resource "google_secret_manager_secret_iam_member" "sync" {
 # application module: every name it mints (release application-patchy,
 # ConfigMap patchy-vars) is the one the manifests expect.
 module "application" {
-  source = "git::https://github.com/bitwise-media-group/terraform-google-gke-flux.git//modules/application?ref=5690292e74c82b4735bb66bad2ad331a01fc0e22"
+  source = "git::https://github.com/bitwise-media-group/terraform-google-gke-flux.git//modules/application?ref=8585e0873529a86b0b85dfc00eb17fb04583d020"
 
   name    = "patchy"
   cluster = var.cluster
