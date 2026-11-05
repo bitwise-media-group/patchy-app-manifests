@@ -218,8 +218,22 @@ variable "extra_vars" {
   }
 }
 
+variable "create_secrets" {
+  description = <<-EOT
+    Whether this module creates the Secrets Manager containers the image syncs. true (the default) creates them, named
+    <cluster.secret_prefix><name>. false creates none: a durable root keeps the containers (and their out-of-band
+    versions) across cluster rebuilds, in this provider's account and region under the same names, and this root
+    makes only the grants. The grants are the same either way - the podless reader roles modules/application mints
+    for the sync KSAs read every secret under cluster.secret_prefix by name pattern - as is the container set (the
+    secrets output lists it): the durable root must create exactly those names.
+  EOT
+  type        = bool
+  nullable    = false
+  default     = true
+}
+
 variable "tags" {
-  description = "Tags applied to every secret, IAM role and Pod Identity association."
+  description = "Tags applied to every secret this module creates, IAM role and Pod Identity association."
   type        = map(string)
   nullable    = false
   default     = {}

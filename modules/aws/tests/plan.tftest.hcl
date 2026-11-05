@@ -77,6 +77,68 @@ run "default_election" {
   }
 }
 
+run "default_creates_and_grants" {
+  command = plan
+
+  assert {
+    condition     = sort(keys(output.secrets)) == sort(keys(aws_secretsmanager_secret.main))
+    error_message = "by default the secrets output lists exactly the created containers"
+  }
+
+  assert {
+    condition     = sort(keys(module.application.secret_reader_roles)) == tolist(["patchy/patchy-secrets"])
+    error_message = "by default the patchy-namespace sync KSA gets its reader role"
+  }
+}
+
+run "existing_containers" {
+  command = plan
+
+  variables {
+    create_secrets = false
+    harnesses      = ["claude", "codex", "copilot"]
+    cluster = {
+      name              = "patchy-x"
+      namespace         = "flux-system"
+      platform_registry = "123456789012.dkr.ecr.eu-west-2.amazonaws.com/platform"
+      tree              = "aws"
+      issuer            = "^https://token\\.actions\\.githubusercontent\\.com$"
+      keyed             = false
+      oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/oidc.eks.eu-west-2.amazonaws.com/id/ABC"
+      oidc_issuer       = "oidc.eks.eu-west-2.amazonaws.com/id/ABC"
+      secret_prefix     = "patchy-x-"
+    }
+  }
+
+  assert {
+    condition     = length(aws_secretsmanager_secret.main) == 0
+    error_message = "create_secrets = false must create no containers - a durable root holds them"
+  }
+
+  assert {
+    condition     = sort(keys(module.application.secret_reader_roles)) == tolist(["patchy-agents/patchy-secrets", "patchy/patchy-secrets"])
+    error_message = "the reader roles (the grants) are the same set the module mints when it creates the containers"
+  }
+
+  assert {
+    condition = sort(keys(output.secrets)) == tolist([
+      "patchy-anthropic-token", "patchy-copilot-token", "patchy-github-app-id", "patchy-github-app-private-key",
+      "patchy-openai-token", "patchy-webhook-secret",
+    ])
+    error_message = "the secrets output still lists every container name under the same elections"
+  }
+
+  assert {
+    condition = alltrue([
+      for name, secret in output.secrets :
+      secret.arn == null
+      && secret.name == "patchy-x-${name}"
+      && secret.arn_pattern == "arn:aws:secretsmanager:eu-west-2:123456789012:secret:patchy-x-${name}-??????"
+    ])
+    error_message = "each existing container is addressed by its prefixed name and a name-pattern ARN (the random suffix is unknowable)"
+  }
+}
+
 run "application_seed" {
   command = plan
 

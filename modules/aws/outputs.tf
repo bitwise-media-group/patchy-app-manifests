@@ -32,14 +32,17 @@ output "secret_reader_roles" {
 
 output "secrets" {
   description = <<-EOT
-    The created credential containers, keyed by unprefixed name: the ARN and the (prefixed) Secrets Manager name, for
-    wiring further IAM in the caller (e.g. a maintainer's PutSecretValue rotation grant). Every version is added out
-    of band: aws secretsmanager put-secret-value --secret-id <name>.
+    The credential containers the image syncs, keyed by unprefixed name: the (prefixed) Secrets Manager name, the ARN
+    (null when create_secrets is false - the module did not create it) and the name-pattern ARN
+    (arn:...:secret:<name>-??????) that matches it either way, for wiring further IAM in the caller (e.g. a
+    maintainer's PutSecretValue rotation grant). Listed in both modes, so a durable root can create exactly this set.
+    Every version is added out of band: aws secretsmanager put-secret-value --secret-id <name>.
   EOT
   value = {
     for name in keys(local.containers) : name => {
-      arn  = aws_secretsmanager_secret.main[name].arn
-      name = aws_secretsmanager_secret.main[name].name
+      arn         = var.create_secrets ? aws_secretsmanager_secret.main[name].arn : null
+      arn_pattern = local.arn_patterns[name]
+      name        = "${var.cluster.secret_prefix}${name}"
     }
   }
 }

@@ -18,6 +18,8 @@
 #
 #   - the Secrets Manager containers the image syncs
 #     (deploy/aws/resourceset-secrets.yaml), named under cluster.secret_prefix
+#     (unless create_secrets is false: a durable root then holds them under
+#     the same names, in this provider's account and region)
 #   - the seed (application-patchy: the patchy-manifests RSIP + ResourceSet
 #     the image adopts on its first reconcile), the patchy-vars ConfigMap and
 #     the pre-created patchy / patchy-agents namespaces
@@ -32,9 +34,12 @@
 #
 # The credential VERSIONS are added out of band (aws secretsmanager
 # put-secret-value - never terraform state), so destroying this module
-# destroys them with the containers. The containers carry no resource
-# policy: the read grant is identity-side, the reader roles scoping
-# GetSecretValue to ${cluster.secret_prefix}*.
+# destroys them with the containers when it created them. The containers
+# carry no resource policy: the read grant is identity-side, the reader
+# roles scoping GetSecretValue to ${cluster.secret_prefix}*. That grant is
+# by name pattern, never by a created ARN (Secrets Manager ARNs end in a
+# random -XXXXXX suffix), so it is the same whether the containers are
+# created here or, with create_secrets = false, already exist.
 
 data "aws_caller_identity" "current" {}
 
@@ -81,6 +86,22 @@ locals {
   )
 
 
+  # The name-pattern ARN of each container: Secrets Manager appends a random
+  # six-character suffix to every secret ARN, so a grant on a container this
+  # module did not create can only match it by name. The reader roles'
+  # ${cluster.secret_prefix}* grant (modules/application) covers every one.
+  arn_patterns = {
+    for name in keys(local.containers) : name => join(":", [
+      "arn",
+      data.aws_partition.current.partition,
+      "secretsmanager",
+      data.aws_region.current.region,
+      data.aws_caller_identity.current.account_id,
+      "secret",
+      "${var.cluster.secret_prefix}${name}-??????",
+    ])
+  }
+
   # The application's own ConfigMap (patchy-vars), substituted into the
   # manifests alongside cluster-vars. Same conventions as the platform
   # contract: comma-joined sorted lists, the reserved name "none" for an
@@ -125,7 +146,7 @@ locals {
 }
 
 resource "aws_secretsmanager_secret" "main" {
-  for_each = local.containers
+  for_each = var.create_secrets ? local.containers : {}
 
   name        = "${var.cluster.secret_prefix}${each.key}"
   description = "${each.value}. Versions arrive out of band; readable by patchy's secret-sync reader roles on ${var.cluster.name}."
