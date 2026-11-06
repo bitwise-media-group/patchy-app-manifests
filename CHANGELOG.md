@@ -1,0 +1,19 @@
+# Changelog
+
+## 0.1.0 (2026-11-06)
+
+
+### Features
+
+* **aws:** create_secrets toggle to grant on existing containers ([2ac12c1](https://github.com/bitwise-media-group/patchy-app-manifests/commit/2ac12c1c45b1d5d3fbc9fa83db6ca40ca2224d79))
+* **google:** create_secrets toggle to grant on existing containers ([caf8064](https://github.com/bitwise-media-group/patchy-app-manifests/commit/caf8064ada74d5eaa886127d3439a3366af20c6f))
+* install patchy as a self-contained application image ([fc20652](https://github.com/bitwise-media-group/patchy-app-manifests/commit/fc2065284f354d1cd9f57853e73fabc310435e17))
+
+
+### Bug Fixes
+
+* **deps:** pin terraform-google-gke-flux d74b532 and terraform-aws-eks-flux b1aa85c ([2dfb5f9](https://github.com/bitwise-media-group/patchy-app-manifests/commit/2dfb5f93e7b06f8efe1a81ea0f1c3ff828a9d186))
+* **deps:** update bitwise-media-group/github-workflows action to v8.1.0 ([#16](https://github.com/bitwise-media-group/patchy-app-manifests/issues/16)) ([9d139da](https://github.com/bitwise-media-group/patchy-app-manifests/commit/9d139da7361bb153c633075fae9159181d3feeab))
+* **deps:** update fluxcd/flux2 action to v2.10.0 ([#11](https://github.com/bitwise-media-group/patchy-app-manifests/issues/11)) ([a154fde](https://github.com/bitwise-media-group/patchy-app-manifests/commit/a154fdefc49ae5fbcf648dec4c595cc0b230fb18))
+* **publish:** pre-create pull dirs and quieten cosign signing ([d404234](https://github.com/bitwise-media-group/patchy-app-manifests/commit/d4042348fc45598bba5ea3e1a970e531350168a3))
+* **release:** start the first release at 0.1.0 ([fa394f6](https://github.com/bitwise-media-group/patchy-app-manifests/commit/fa394f6828a34387fa22723b51564c3fe73cdf47))
