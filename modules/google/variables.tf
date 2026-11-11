@@ -171,12 +171,13 @@ variable "manifests_semver" {
 variable "signed_identity_subject" {
   description = <<-EOT
     Fulcio certificate-subject regexp of the workflow that signs the manifests image (SIGNED_IDENTITY_PATCHY_MANIFESTS,
-    and the seed's verify subject); this repo's publish.yaml at a release tag by default. Ignored on KMS-keyed clusters
+    and the seed's verify subject); this repo's release.yaml on main by default, which signs edge builds and (by
+    promotion) every release. Ignored on KMS-keyed clusters
     (cluster.keyed), which verify against the signing key's public half instead.
   EOT
   type        = string
   nullable    = false
-  default     = "^https://github\\.com/bitwise-media-group/patchy-app-manifests/\\.github/workflows/publish\\.yaml@refs/tags/v.+$"
+  default     = "^https://github\\.com/bitwise-media-group/patchy-app-manifests/\\.github/workflows/release\\.yaml@refs/heads/main$"
 }
 
 variable "extra_vars" {

@@ -29,7 +29,7 @@ flowchart LR
   img[("Platform registry<br/>manifests/patchy")]
   flux["flux-system<br/>RSIP + ResourceSet<br/>patchy-manifests"]
   ks["Kustomization/patchy<br/>./deploy/&lt;PLATFORM_TREE&gt;"]
-  ci["publish.yaml<br/>keyless cosign"]
+  ci["release.yaml<br/>keyless cosign"]
   tf -- "seed + patchy-vars<br/>secrets · IAM" --> app
   app -- "bootstrap only" --> flux
   ci -- "vX.Y.Z" --> img
@@ -56,7 +56,7 @@ manifests/                            <- the image root (flux push artifact --pa
 modules/aws, modules/google           the installers: one module call against a cluster's application_target
 modules/scc-notifications             standalone, google-only: Security Command Center findings to patchy
 scripts/validate.sh, tests/           the render + schema harness (make test)
-scripts/publish.sh, .github/workflows the release pipeline (push, sign, tag; GAR and ECR)
+patchy.yaml, .github/workflows       the release pipeline (patchy build: edge builds, promoted releases)
 docs/ · zensical.toml · overrides/    this site
 ```
 

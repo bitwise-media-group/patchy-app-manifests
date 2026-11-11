@@ -31,7 +31,7 @@ Three signing identities are in play, and they must not be confused:
 | ---------------------------------- | ---------- | -------------------------------------------------------------- |
 | `SIGNED_IDENTITY_PATCHY`           | the chart  | patchy's own `helm.yaml`                                       |
 | `SIGNED_IDENTITY_PATCHY_IMAGES`    | the images | the shared release workflow                                    |
-| `SIGNED_IDENTITY_PATCHY_MANIFESTS` | this image | this repository's `publish.yaml` (see [Releases](releases.md)) |
+| `SIGNED_IDENTITY_PATCHY_MANIFESTS` | this image | this repository's `release.yaml` (see [Releases](releases.md)) |
 
 All three carry `:=` defaults in the manifests.
 

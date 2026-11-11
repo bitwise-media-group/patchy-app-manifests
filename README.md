@@ -56,7 +56,7 @@ manifests/                            <- the image root (flux push artifact --pa
   deploy/google/                      + ../../flux, GKE Integrated Secret Synchronization, HealthCheckPolicies
 modules/aws, modules/google           the installers: one module call against a cluster's application_target
 scripts/validate.sh, tests/           the render + schema harness (make test)
-scripts/publish.sh, .github/workflows the release pipeline (push, sign, tag; GAR and ECR)
+patchy.yaml, .github/workflows       the release pipeline (patchy build: edge builds, promoted releases)
 ```
 
 `deploy/common` may not branch on cloud: the one cloud-shaped value it needs (the KMS URI scheme of the keyed attestor)
@@ -203,16 +203,17 @@ kubectl -n patchy rollout restart deployment patchy-status-server
 
 ## Releases
 
-release-please cuts `vX.Y.Z`; `publish.yaml` pushes `manifests/` as `manifests/patchy:X.Y.Z` to every configured
-registry, signs each digest keylessly, then moves `staging`; `publish-edge.yaml` pushes `edge-next` on every merge to
-main, signs, then moves `edge`; `promote.yaml` moves `stable` behind the `production` environment. Clusters follow
-**version tags** through the seed's semver range; the channel tags exist for humans and `flux pull artifact`.
+Every push to main that cuts no release publishes `manifests/` as an immutable
+`manifests/patchy:<next version>-edge.<timestamp>.g<commit>` build; merging the release PR cuts `vX.Y.Z` and adds that
+tag to the newest edge build of the version, without rebuilding. Both run in `release.yaml`'s publish job
+(github-workflows' `patchy-publish` action), signed keylessly as this repository's release workflow on `main`. Clusters
+follow **releases** through the seed's semver range; edge builds are pre-releases outside any plain range.
 
-Org variables: `PLATFORM_REGISTRY` + `GCP_WIF_PROVIDER` + `GCP_MANIFEST_PUBLISHER_SA` (GAR; the SA is this repo's own
-publisher, set as a repo variable shadowing the org one), and `AWS_MANIFEST_PUBLISHER_ROLE` + `AWS_PLATFORM_REGISTRY` +
-`AWS_REGION` (ECR; the role is the artifact-store module's `manifest_publishers["patchy-app-manifests"]`, path-scoped to
-`manifests/patchy` so this repo can never overwrite the platform). The ECR branch is skipped when
-`AWS_MANIFEST_PUBLISHER_ROLE` is unset.
+Org variables: `GOOGLE_PLATFORM_REGISTRY` + `GOOGLE_WORKLOAD_IDENTITY_PROVIDER` + `GOOGLE_MANIFEST_PUBLISHER_SA` (GAR;
+the SA is this repo's own publisher, set as a repo variable shadowing the org one), and `AWS_MANIFEST_PUBLISHER_ROLE` +
+`AWS_PLATFORM_REGISTRY` + `AWS_REGION` (ECR; the role is the artifact-store module's
+`manifest_publishers["patchy-app-manifests"]`, path-scoped to `manifests/patchy` so this repo can never overwrite the
+platform). The ECR branch is skipped when `AWS_MANIFEST_PUBLISHER_ROLE` is unset.
 
 ## Validation
 
