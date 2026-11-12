@@ -28,12 +28,17 @@ platform's.
 
 `policy.yaml` moves patchy's images to their own verification rule without dropping the check:
 
-- a `PolicyException` in `kyverno` exempts pods in patchy's namespaces from the platform's `verify-platform-signature`
-  rule;
-- the `verify-patchy-signature` ClusterPolicy re-verifies them there: ghcr patchy and evolve images against the shared
-  release workflow identity, everything else against the platform identity.
+- a `policies.kyverno.io/v1` `PolicyException` in `kyverno` exempts patchy's namespaces from the platform's
+  `verify-platform-signature` `ImageValidatingPolicy`;
+- the `verify-patchy-signature` `ImageValidatingPolicy` re-verifies them there: ghcr patchy and evolve images against
+  the shared release workflow identity, everything else against the platform identity.
 
-Every image is still verified by exactly one rule.
+Every image is still verified by exactly one policy. The exception is scoped on `request.namespace`, so it also covers
+the Deployments, ReplicaSets, Jobs and CronJobs Kyverno checks on the pods' behalf, not just the pods.
+
+A pre-CEL `kyverno.io/v2` exception ships alongside it, so patchy stays exempt on clusters still running the platform's
+old `ClusterPolicy`. It covers the auto-generated controller rules as well; before, every patchy Deployment and
+ReplicaSet was reported failing. It goes once every cluster runs the platform's CEL release.
 
 ## Dex clients
 

@@ -156,10 +156,11 @@ tree, and whether the aws `secret-sync` Kustomization exists to wait on), `PLATF
 - **RBAC** (`rbac.yaml`): RoleBindings under `patchy-*` names onto the chart-rendered `patchy-findings-*` and
   `patchy-evaluations-submitter` ClusterRoles, one per non-empty `RBAC_GROUP_*`. The cluster-wide bindings are the
   platform's.
-- **Image verification** (`policy.yaml`): a `PolicyException` in `kyverno` exempts pods in patchy's namespaces from the
-  platform's `verify-platform-signature` rule, and the `verify-patchy-signature` ClusterPolicy re-verifies them there -
-  ghcr patchy and evolve images against the shared release workflow identity, everything else against the platform
-  identity - so every image is still verified by exactly one rule.
+- **Image verification** (`policy.yaml`): a `PolicyException` in `kyverno` exempts patchy's namespaces from the
+  platform's `verify-platform-signature` policy, and the `verify-patchy-signature` ImageValidatingPolicy re-verifies
+  them there - ghcr patchy and evolve images against the shared release workflow identity, everything else against the
+  platform identity - so every image is still verified by exactly one policy. A pre-CEL `kyverno.io/v2` exception rides
+  alongside until every cluster runs the platform's CEL policies.
 - **Dex clients** (`resourceset-dex.yaml`, dex clusters only): see [Dex clients](#dex-clients).
 - **Secret syncs** (per cloud): one `SecretProviderClass`/`SecretSync` pair per credential, run as the `patchy-secrets`
   KSAs. `patchy-github` always; the harness credentials by election, the anthropic one only under the anthropic

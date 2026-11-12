@@ -9,34 +9,43 @@
 # objects restore closure:
 #
 #   - a PolicyException (in the kyverno namespace, the only one kyverno
-#     admits exceptions from) that exempts pods in patchy and patchy-agents
-#     from the platform rule, and
-#   - the verify-patchy-signature ClusterPolicy below, scoped to those same
-#     namespaces, verifying the ghcr images against their own identity and
-#     everything else against the platform identity - so every image in
-#     these namespaces is still verified by exactly one rule, and the
-#     exception can never widen into "unverified".
+#     reads exceptions from) that exempts patchy and patchy-agents from the
+#     platform policy, and
+#   - the verify-patchy-signature ImageValidatingPolicy below, scoped to
+#     those same namespaces, verifying the ghcr images against their own
+#     identity and everything else against the platform identity - so
+#     every image in these namespaces is still verified by exactly one
+#     policy, and the exception can never widen into "unverified".
 #
-# The ClusterPolicy rides a ResourceSet because the platform attestor SHAPE
-# follows the signing mode: keyless clusters trust the Fulcio identities,
-# KMS-keyed clusters (SIGNED_IDENTITY_KMS_KEY set) resolve the signing key
-# through the cloud KMS API at admission (the cluster module grants the
-# kyverno controllers the verify permission). The ghcr entries are keyless
-# whatever the platform's mode, so their issuer falls back to GitHub
-# Actions on keyed clusters (where SIGNED_IDENTITY_ISSUER is published
-# empty). Their Fulcio identity is the REUSABLE workflow's job_workflow_ref
-# (github-workflows, not the source repo - unlike patchy's chart, which
-# its own helm.yaml signs), pinned to releases cut from each repo via the
-# githubWorkflowRepository extension.
+# Both are policies.kyverno.io (CEL) kinds, matching the platform's
+# verify-platform-signature from flux-manifests' CEL migration. An image
+# policy honours only whole-resource exceptions (one with images set is
+# ignored), so the exemption is by namespace. Scoping on request.namespace
+# also covers the Deployments, ReplicaSets, Jobs and CronJobs kyverno
+# auto-generates the policy for, not just the pods.
 #
-# type: SigstoreBundle on all rules: the publishers sign with cosign v3,
-# whose signatures are sigstore bundles attached via the OCI referrers API
-# - NOT the legacy .sig tag. The tlog entry travels inside the bundle and
-# kyverno checks it offline against the sigstore TUF trusted root; the
-# rekor.url on each keyless entry exists only because kyverno's CRD
-# validation demands rekor-or-roots on every keyless attestor regardless
-# of type. failureAction follows the platform's KYVERNO_FAILURE_ACTION so
-# the two policies soak and enforce together.
+# Migration: the kyverno.io/v2 exception further down is the pre-CEL one,
+# kept so patchy stays exempt on clusters still running the platform's
+# ClusterPolicy. It now also covers the auto-generated controller rules,
+# which it previously missed (every patchy Deployment and ReplicaSet was
+# reported failing). Remove it, and its test schema, once every cluster
+# runs the platform's ImageValidatingPolicy. Until then the two exceptions
+# coexist: a policies.kyverno.io exception naming a policy that doesn't
+# exist yet is inert, and vice versa.
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: patchy-images
+  namespace: kyverno
+spec:
+  policyRefs:
+    - kind: ImageValidatingPolicy
+      name: verify-platform-signature
+  matchConditions:
+    - name: patchy-namespaces
+      expression: >-
+        request.namespace in ['patchy', 'patchy-agents']
+---
 apiVersion: kyverno.io/v2
 kind: PolicyException
 metadata:
@@ -47,15 +56,45 @@ spec:
     - policyName: verify-platform-signature
       ruleNames:
         - verify-platform-signature
+        - autogen-verify-platform-signature
+        - autogen-cronjob-verify-platform-signature
   match:
     any:
       - resources:
           kinds:
             - Pod
+            - Deployment
+            - ReplicaSet
+            - StatefulSet
+            - DaemonSet
+            - Job
+            - CronJob
           namespaces:
             - patchy
             - patchy-agents
 ---
+# The policy rides a ResourceSet because two things follow cluster vars
+# and need a text template: the platform attestor SHAPE follows the
+# signing mode (keyless clusters trust the Fulcio identities, KMS-keyed
+# clusters - SIGNED_IDENTITY_KMS_KEY set - resolve the signing key through
+# the cloud KMS API at admission; the cluster module grants the kyverno
+# controllers the verify permission), and KYVERNO_FAILURE_ACTION maps
+# Enforce onto Deny. The ghcr attestors are keyless whatever the
+# platform's mode, so their issuer falls back to GitHub Actions on keyed
+# clusters (where SIGNED_IDENTITY_ISSUER is published empty). Their Fulcio
+# identity is the REUSABLE workflow's job_workflow_ref (github-workflows,
+# not the source repo - unlike patchy's chart, which its own helm.yaml
+# signs), pinned to releases cut from each repo via the
+# githubWorkflowRepository extension.
+#
+# Signatures are cosign v3 sigstore bundles attached via the OCI referrers
+# API; the image verifier detects and verifies them (tlog entry included)
+# offline against the sigstore TUF trusted root. Registry auth is
+# per-policy for this kind (no global credential helper), so the cloud's
+# provider is named for the platform-registry images; ghcr is public.
+# Digest rewriting and verifyDigest stay off, as on the platform policy:
+# the action is var-driven and a digest mutation under Audit would change
+# pods the policy is only meant to report on.
 apiVersion: fluxcd.controlplane.io/v1
 kind: ResourceSet
 metadata:
@@ -67,118 +106,97 @@ spec:
     # an empty input into null, the key vanishes on apply, and the
     # template's missingkey=error fails the build
     << $keyed := ne "${SIGNED_IDENTITY_KMS_KEY:=}" "" >>
+    << $aws := eq "${OCI_PROVIDER:=gcp}" "aws" >>
+    << $enforce := eq "${KYVERNO_FAILURE_ACTION:=Audit}" "Enforce" >>
     ---
-    apiVersion: kyverno.io/v1
-    kind: ClusterPolicy
+    apiVersion: policies.kyverno.io/v1
+    kind: ImageValidatingPolicy
     metadata:
       name: verify-patchy-signature
     spec:
+      validationActions:
+        - << if $enforce >>Deny<< else >>Audit<< end >>
+      failurePolicy: Fail
       webhookConfiguration:
-        failurePolicy: Fail
         timeoutSeconds: 30
-      rules:
-        - name: verify-patchy-images
-          match:
-            any:
-              - resources:
-                  kinds:
-                    - Pod
-                  namespaces:
-                    - patchy
-                    - patchy-agents
-          verifyImages:
-            - imageReferences:
-                - "ghcr.io/bitwise-media-group/patchy/*"
-              type: SigstoreBundle
-              failureAction: "${KYVERNO_FAILURE_ACTION:=Audit}"
-              required: true
-              # Digest rewriting stays off: kyverno rejects mutateDigest
-              # under an Audit failureAction, and failureAction is
-              # var-driven, so the policy must be valid in both modes.
-              # verifyDigest follows suit - without the mutation,
-              # tag-referenced images carry no digest and would fail that
-              # check spuriously.
-              mutateDigest: false
-              verifyDigest: false
-              attestors:
-                - count: 1
-                  entries:
-                    - keyless:
-                        subjectRegExp: '${SIGNED_IDENTITY_PATCHY_IMAGES:=^https://github\.com/bitwise-media-group/github-workflows/}'
-                        issuerRegExp: '${SIGNED_IDENTITY_ISSUER:=^https://token\.actions\.githubusercontent\.com$}'
-                        additionalExtensions:
-                          githubWorkflowRepository: bitwise-media-group/patchy
-                        # satisfies CRD validation only - see header comment
-                        rekor:
-                          url: https://rekor.sigstore.dev
+      matchConstraints:
+        resourceRules:
+          - apiGroups: [""]
+            apiVersions: ["v1"]
+            operations: ["CREATE", "UPDATE"]
+            resources: ["pods"]
+      matchConditions:
+        - name: patchy-namespaces
+          expression: >-
+            request.namespace in ['patchy', 'patchy-agents']
+      # Every image: `images` carries only the matched ones, and the
+      # platform-identity rule below must see sidecars and init images too.
+      matchImageReferences:
+        - glob: "*"
+      credentials:
+        providers:
+          - << if $aws >>amazon<< else >>google<< end >>
+      attestors:
+        - name: patchy
+          cosign:
+            keyless:
+              identities:
+                - subjectRegExp: '${SIGNED_IDENTITY_PATCHY_IMAGES:=^https://github\.com/bitwise-media-group/github-workflows/}'
+                  issuerRegExp: '${SIGNED_IDENTITY_ISSUER:=^https://token\.actions\.githubusercontent\.com$}'
+              additionalExtensions:
+                githubWorkflowRepository: bitwise-media-group/patchy
         # the evolve-runner images the evaluation controller's Jobs run:
         # evolve releases through the same reusable workflow as patchy, so
-        # the entry mirrors the one above with only the repository pin
+        # the attestor mirrors the one above with only the repository pin
         # changed
-        - name: verify-evolve-images
-          match:
-            any:
-              - resources:
-                  kinds:
-                    - Pod
-                  namespaces:
-                    - patchy
-                    - patchy-agents
-          verifyImages:
-            - imageReferences:
-                - "ghcr.io/bitwise-media-group/evolve-runner-*"
-              type: SigstoreBundle
-              failureAction: "${KYVERNO_FAILURE_ACTION:=Audit}"
-              required: true
-              mutateDigest: false
-              verifyDigest: false
-              attestors:
-                - count: 1
-                  entries:
-                    - keyless:
-                        subjectRegExp: '${SIGNED_IDENTITY_PATCHY_IMAGES:=^https://github\.com/bitwise-media-group/github-workflows/}'
-                        issuerRegExp: '${SIGNED_IDENTITY_ISSUER:=^https://token\.actions\.githubusercontent\.com$}'
-                        additionalExtensions:
-                          githubWorkflowRepository: bitwise-media-group/evolve
-                        rekor:
-                          url: https://rekor.sigstore.dev
-        # Everything else in these namespaces (a sidecar, an init image,
-        # a future dependency) is held to the platform identity, exactly
-        # as the exempted platform rule would have - the exception moves
-        # the check, it does not remove it.
-        - name: verify-platform-images
-          match:
-            any:
-              - resources:
-                  kinds:
-                    - Pod
-                  namespaces:
-                    - patchy
-                    - patchy-agents
-          verifyImages:
-            - imageReferences:
-                - "*"
-              skipImageReferences:
-                - "ghcr.io/bitwise-media-group/patchy/*"
-                - "ghcr.io/bitwise-media-group/evolve-runner-*"
-              type: SigstoreBundle
-              failureAction: "${KYVERNO_FAILURE_ACTION:=Audit}"
-              required: true
-              mutateDigest: false
-              verifyDigest: false
-              attestors:
-                - count: 1
-                  entries:
-                    << if $keyed >>
-                    # Keyed: the signing key, in the cosign KMS URI scheme
-                    # of the cloud whose registry dialect the cluster
-                    # publishes (aws -> awskms, otherwise gcpkms).
-                    - keys:
-                        kms: << if eq "${OCI_PROVIDER:=gcp}" "aws" >>awskms:///${SIGNED_IDENTITY_KMS_KEY:=}<< else >>gcpkms://${SIGNED_IDENTITY_KMS_KEY:=}<< end >>
-                    << else >>
-                    - keyless:
-                        subjectRegExp: '${SIGNED_IDENTITY_IMAGES:=}'
-                        issuerRegExp: '${SIGNED_IDENTITY_ISSUER:=}'
-                        rekor:
-                          url: https://rekor.sigstore.dev
-                    << end >>
+        - name: evolve
+          cosign:
+            keyless:
+              identities:
+                - subjectRegExp: '${SIGNED_IDENTITY_PATCHY_IMAGES:=^https://github\.com/bitwise-media-group/github-workflows/}'
+                  issuerRegExp: '${SIGNED_IDENTITY_ISSUER:=^https://token\.actions\.githubusercontent\.com$}'
+              additionalExtensions:
+                githubWorkflowRepository: bitwise-media-group/evolve
+        - name: platform
+          cosign:
+            << if $keyed >>
+            # Keyed: the signing key, in the cosign KMS URI scheme of the
+            # cloud whose registry dialect the cluster publishes.
+            key:
+              kms: << if $aws >>awskms:///${SIGNED_IDENTITY_KMS_KEY:=}<< else >>gcpkms://${SIGNED_IDENTITY_KMS_KEY:=}<< end >>
+            << else >>
+            keyless:
+              identities:
+                - subjectRegExp: '${SIGNED_IDENTITY_IMAGES:=}'
+                  issuerRegExp: '${SIGNED_IDENTITY_ISSUER:=}'
+            << end >>
+      validationConfigurations:
+        required: true
+        mutateDigest: false
+        verifyDigest: false
+      variables:
+        - name: allImages
+          expression: >-
+            images.?containers.orValue([]) + images.?initContainers.orValue([]) + images.?ephemeralContainers.orValue([])
+        - name: patchyImages
+          expression: >-
+            variables.allImages.filter(image, image.startsWith('ghcr.io/bitwise-media-group/patchy/'))
+        - name: evolveImages
+          expression: >-
+            variables.allImages.filter(image, image.startsWith('ghcr.io/bitwise-media-group/evolve-runner-'))
+      validations:
+        - expression: >-
+            variables.patchyImages.all(image, verifyImageSignatures(image, [attestors.patchy]) > 0)
+          message: patchy images must carry patchy's release workflow signature
+        - expression: >-
+            variables.evolveImages.all(image, verifyImageSignatures(image, [attestors.evolve]) > 0)
+          message: evolve-runner images must carry evolve's release workflow signature
+        # Everything else in these namespaces (a sidecar, an init image, a
+        # future dependency) is held to the platform identity, exactly as
+        # the exempted platform policy would have - the exception moves the
+        # check, it does not remove it.
+        - expression: >-
+            variables.allImages
+            .filter(image, !(image in variables.patchyImages) && !(image in variables.evolveImages))
+            .all(image, verifyImageSignatures(image, [attestors.platform]) > 0)
+          message: every other image must carry the platform publish workflow's signature
