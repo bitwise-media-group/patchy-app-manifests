@@ -10,8 +10,9 @@
 # Gated on dex being elected in PLATFORM_COMPONENTS: on a dex-less cluster
 # the DexClient CRD does not exist, so the objects ride a ResourceSet
 # template that renders nothing there. On a dex cluster the seeded
-# Kustomization depends on the dex Kustomization (../../flux), which is only
-# Ready once the controller has installed the CRDs.
+# Kustomization depends on the dex Kustomization (modules/{aws,google} add it
+# under sso_enabled), which is only Ready once the controller has installed
+# the CRDs.
 #
 # Client ids default to <namespace>-<name>, so status is patchy-status (the
 # id the cluster module used to mint) and evolve is patchy-evolve. The

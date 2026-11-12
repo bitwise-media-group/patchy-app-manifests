@@ -2,14 +2,14 @@
 # SPDX-License-Identifier: MIT
 
 output "release" {
-  description = "The bootstrap-only seed release (application-patchy) in the cluster's flux namespace."
+  description = "The seed release (application-patchy) in the cluster's flux namespace, reconciled by every apply."
   value       = module.application.release
 }
 
 output "vars" {
   description = <<-EOT
     The patchy-vars ConfigMap contents: every application-owned key the manifests substitute - AGENT_*, PATCHY_*,
-    CLAUDE_*, the manifests semver range and signing subject - plus extra_vars.
+    and CLAUDE_* - plus extra_vars.
   EOT
   value       = merge(var.extra_vars, local.vars)
 }

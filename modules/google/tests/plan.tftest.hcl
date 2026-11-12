@@ -150,7 +150,7 @@ run "application_seed" {
 
   assert {
     condition     = output.release == "application-patchy"
-    error_message = "the seed is release application-patchy, the name the image's flux/ objects are adopted from"
+    error_message = "the seed is release application-patchy, the release that owns the patchy-manifests seed on every apply"
   }
 
   assert {
@@ -159,7 +159,7 @@ run "application_seed" {
   }
 
   assert {
-    condition     = module.application.path == "./deploy/google"
+    condition     = module.application.path == "./google"
     error_message = "the seed applies the image's google tree"
   }
 }
@@ -171,7 +171,6 @@ run "vars_mirror_aws" {
     condition = sort(keys(output.vars)) == tolist([
       "AGENT_EGRESS_POLICY", "AGENT_HARNESSES", "CLAUDE_ANTHROPIC_AUTH", "CLAUDE_MODEL_MAP", "CLAUDE_PROVIDER",
       "CLAUDE_VERTEX_PROJECT_ID", "CLAUDE_VERTEX_REGION", "PATCHY_DOMAIN", "PATCHY_EVALUATION",
-      "PATCHY_MANIFESTS_SEMVER", "SIGNED_IDENTITY_PATCHY_MANIFESTS",
     ])
     error_message = "the patchy-vars key set mirrors modules/aws with the vertex pair in place of the bedrock pair"
   }
@@ -360,4 +359,17 @@ run "foreign_registry_rejected" {
   }
 
   expect_failures = [var.cluster]
+}
+
+run "image_follows_the_edge_channel" {
+  command = plan
+
+  variables {
+    image = { channel = "edge", semver = "^0.2.0-0" }
+  }
+
+  assert {
+    condition     = output.release == "application-patchy"
+    error_message = "a bounded edge channel passes straight through to the seed"
+  }
 }

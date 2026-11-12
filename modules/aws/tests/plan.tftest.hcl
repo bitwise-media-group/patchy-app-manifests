@@ -144,7 +144,7 @@ run "application_seed" {
 
   assert {
     condition     = output.release == "application-patchy"
-    error_message = "the seed is release application-patchy, the name the image's flux/ objects are adopted from"
+    error_message = "the seed is release application-patchy, the release that owns the patchy-manifests seed on every apply"
   }
 
   assert {
@@ -153,7 +153,7 @@ run "application_seed" {
   }
 
   assert {
-    condition     = module.application.path == "./deploy/aws"
+    condition     = module.application.path == "./aws"
     error_message = "the seed applies the image's aws tree"
   }
 
@@ -170,7 +170,7 @@ run "vars_contract" {
     condition = sort(keys(output.vars)) == tolist([
       "AGENT_EGRESS_POLICY", "AGENT_HARNESSES", "CLAUDE_ANTHROPIC_AUTH", "CLAUDE_BEDROCK_REGION",
       "CLAUDE_BEDROCK_REGION_PREFIX", "CLAUDE_MODEL_MAP", "CLAUDE_PROVIDER", "PATCHY_DOMAIN",
-      "PATCHY_EVALUATION", "PATCHY_MANIFESTS_SEMVER", "SIGNED_IDENTITY_PATCHY_MANIFESTS",
+      "PATCHY_EVALUATION",
     ])
     error_message = "the patchy-vars key set is the manifests contract (tests/patchy-vars.env) and must not drift"
   }
@@ -198,10 +198,6 @@ run "vars_contract" {
     error_message = "the evaluation toggle publishes the literal false and the served host passes through"
   }
 
-  assert {
-    condition     = output.vars.PATCHY_MANIFESTS_SEMVER == "<1.0.0 >=0.1.0" && output.vars.SIGNED_IDENTITY_PATCHY_MANIFESTS == var.signed_identity_subject
-    error_message = "the image's own provider and OCIRepository must read the same range and subject the seed was created with"
-  }
 }
 
 run "extra_vars_merge" {
@@ -434,4 +430,17 @@ run "foreign_registry_rejected" {
   }
 
   expect_failures = [var.cluster]
+}
+
+run "image_follows_the_edge_channel" {
+  command = plan
+
+  variables {
+    image = { channel = "edge", semver = "^0.2.0-0" }
+  }
+
+  assert {
+    condition     = output.release == "application-patchy"
+    error_message = "a bounded edge channel passes straight through to the seed"
+  }
 }

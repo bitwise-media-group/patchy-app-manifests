@@ -1,12 +1,11 @@
 # patchy-app-manifests
 
-[patchy] as a self-owned **application image** for the platform clusters. This repo publishes
-`oci://<registry>/manifests/patchy`: a cosign-signed OCI artifact holding everything patchy deploys on a cluster (the
-chart releases, the secret syncs, the RBAC bindings, the image-verification policy) plus its own flux self-definition.
-The terraform modules under `modules/` install it onto a cluster as a self-contained application: they seed the image
-once (flux owns it from then on) and create everything it needs outside the cluster - secret containers, IAM grants and
-the `patchy-vars` ConfigMap - through the cluster modules' generic `modules/application`. The cluster module itself has
-no knowledge of patchy.
+[patchy] as an **application image** for the platform clusters. This repo publishes `oci://<registry>/manifests/patchy`:
+a cosign-signed OCI artifact holding everything patchy deploys on a cluster (the chart releases, the secret syncs, the
+RBAC bindings, the image-verification policy). The terraform modules under `modules/` install it onto a cluster as a
+self-contained application: they seed the image, pick which builds it follows on every apply, and create everything it
+needs outside the cluster - secret containers, IAM grants and the `patchy-vars` ConfigMap - through the cluster modules'
+generic `modules/application`. The cluster module itself has no knowledge of patchy.
 
 Until 4.0 of [flux-manifests] this content lived inside the platform artifact as its `patchy` and `patchy-cloud`
 components, elected through `STACK_COMPONENTS`. Splitting it out means an application release and a platform release are
@@ -22,45 +21,43 @@ sees its IAM, secrets or SSO wiring.
 
 ## The seed contract
 
-The cluster modules' `modules/application` creates two objects in `flux-system`, bootstrap-only (the
-`application-patchy` helm release, under `ignore_changes = all`), and this image ships the same two objects under
-`manifests/flux/` so the first reconcile adopts them. The names are a fixed contract between the three repos:
+The cluster modules' `modules/application` creates two objects in `flux-system` through the `application-patchy` helm
+release, and keeps them under terraform on every apply; this image ships no copy of them. The names are a fixed contract
+between the three repos:
 
-| object                     | name               | namespace     | owner after hand-over              |
+| object                     | name               | namespace     | owner                              |
 | -------------------------- | ------------------ | ------------- | ---------------------------------- |
-| `ResourceSetInputProvider` | `patchy-manifests` | `flux-system` | `Kustomization/patchy`             |
-| `ResourceSet`              | `patchy-manifests` | `flux-system` | `Kustomization/patchy`             |
+| `ResourceSetInputProvider` | `patchy-manifests` | `flux-system` | terraform (`modules/{aws,google}`) |
+| `ResourceSet`              | `patchy-manifests` | `flux-system` | terraform (`modules/{aws,google}`) |
 | `OCIRepository`            | `patchy-manifests` | `flux-system` | `ResourceSet/patchy-manifests`     |
 | `Kustomization`            | `patchy`           | `flux-system` | `ResourceSet/patchy-manifests`     |
 | `ConfigMap` (substitution) | `cluster-vars`     | `flux-system` | terraform (the cluster root)       |
 | `ConfigMap` (substitution) | `patchy-vars`      | `flux-system` | terraform (`modules/{aws,google}`) |
 
-- The provider follows the image's **version tags** through `PATCHY_MANIFESTS_SEMVER` (default `<1.0.0 >=0.1.0`); the
-  ResourceSet turns the newest match into a digest-pinned, signature-verified `OCIRepository` and the `Kustomization`
-  that applies `./deploy/<PLATFORM_TREE>` from it, substituting from `cluster-vars` and `patchy-vars`.
-- Both seed objects carry `kustomize.toolkit.fluxcd.io/prune: disabled` (in the seed and in the image): the
-  Kustomization applies its own parents, and must never be able to prune them - an image that dropped `flux/` by mistake
-  would otherwise garbage-collect itself and every patchy object with it.
-- After hand-over the image owns the semver floor, the `dependsOn` gates, the verify identity and the interval; a
-  manifests release changes them with no terraform apply. Destroying the patchy module uninstalls the seed: the
-  ResourceSet finalizer garbage-collects the Kustomization, whose finalizer prunes patchy.
-- A range matching **no** tag empties the ResourceSet, which prunes the application. Keep the floor honest.
+- The provider follows the modules' `image` (`semver`, `channel`, passed straight through): by default the newest
+  release in `<1.0.0 >=0.1.0`. The ResourceSet turns the newest match into a digest-pinned, signature-verified
+  `OCIRepository` and the `Kustomization` that applies `./<PLATFORM_TREE>` from it, substituting from `cluster-vars` and
+  `patchy-vars`.
+- The range moves with the infrastructure: a release that needs new roles, grants or secret containers is a breaking
+  release, and the module version that adds them moves the range in the same apply. Within a range, a release must never
+  need new infrastructure.
+- Destroying the patchy module uninstalls the seed: the ResourceSet finalizer garbage-collects the Kustomization, whose
+  finalizer prunes patchy. A range matching **no** tag empties the ResourceSet, which prunes the application too.
 
 ## Layout
 
 ```text
 manifests/                            <- the image root (flux push artifact --path manifests)
-  flux/                               the self-definition above (RSIP + ResourceSet)
-  deploy/common/                      cloud-neutral: namespaces, chart releases, rbac, policy
-  deploy/aws/                         + ../../flux, the aws secret-sync dialect (Secrets Store CSI + SecretSync)
-  deploy/google/                      + ../../flux, GKE Integrated Secret Synchronization, HealthCheckPolicies
+  common/                             cloud-neutral: namespaces, chart releases, rbac, policy
+  aws/                                + ../common, the aws secret-sync dialect (Secrets Store CSI + SecretSync)
+  google/                             + ../common, GKE Integrated Secret Synchronization, HealthCheckPolicies
 modules/aws, modules/google           the installers: one module call against a cluster's application_target
 scripts/validate.sh, tests/           the render + schema harness (make test)
 patchy.yaml, .github/workflows       the release pipeline (patchy build: edge builds, promoted releases)
 ```
 
-`deploy/common` may not branch on cloud: the one cloud-shaped value it needs (the KMS URI scheme of the keyed attestor)
-keys off `OCI_PROVIDER`, which the aws platform publishes and google leaves to the `gcp` default.
+`common` may not branch on cloud: the one cloud-shaped value it needs (the KMS URI scheme of the keyed attestor) keys
+off `OCI_PROVIDER`, which the aws platform publishes and google leaves to the `gcp` default.
 
 ## Installing patchy
 
@@ -103,13 +100,12 @@ The image url (`oci://<platform_registry>/manifests/patchy`), the secret prefix 
 `application_target`: on a keyless cluster the seed verifies the image against `signed_identity_subject`, on a KMS-keyed
 one against the `cosign-pub` Secret.
 
-Inputs: `cluster`, `domain`, `harnesses`, `claude`, `evaluation`, `sso_enabled`, `egress_policy`, `manifests_semver`,
+Inputs: `cluster`, `domain`, `harnesses`, `claude`, `evaluation`, `sso_enabled`, `egress_policy`, `image`,
 `signed_identity_subject`, `extra_vars`, and `tags` (aws) or `labels` (google). Outputs: `release`, `vars`, `secrets`,
 and `workload_roles` + `secret_reader_roles` (aws) or `workload_members` (google).
 
 The containers' versions are added out of band and destroyed with the module. `sso_enabled` declares no secrets: it adds
-the platform's `dex` Kustomization to the seed's `dependsOn` (the image's own Kustomization does the same once it owns
-itself) and is required by `evaluation`.
+the platform's `dex` Kustomization to the seed's `dependsOn` and is required by `evaluation`.
 
 Security Command Center findings reach patchy through
 [`modules/scc-notifications`](modules/scc-notifications/README.md), a standalone google-only module (topic, notification
@@ -134,20 +130,18 @@ key is application-owned; the manifests read the platform keys from `cluster-var
 | `PATCHY_DOMAIN`                                                | the served host; must equal the platform's `PLATFORM_DOMAIN`                   |
 | `CLAUDE_PROVIDER`, `CLAUDE_ANTHROPIC_AUTH`, `CLAUDE_MODEL_MAP` | the broker's provider knobs                                                    |
 | `CLAUDE_BEDROCK_REGION`, `CLAUDE_BEDROCK_REGION_PREFIX`        | aws only (google publishes `CLAUDE_VERTEX_REGION`, `CLAUDE_VERTEX_PROJECT_ID`) |
-| `PATCHY_MANIFESTS_SEMVER`                                      | the range the image's own provider follows                                     |
-| `SIGNED_IDENTITY_PATCHY_MANIFESTS`                             | the Fulcio subject of this repo's publish workflow                             |
 
 Caller extras (`PATCHY_SEMVER` for the chart range, `PATCHY_FALLBACK_REPOSITORY`, `AGENT_EGRESS_BROAD`, the google
 `SCC_*` pipeline values) ride the same ConfigMap through the module's `extra_vars`, which cannot shadow a key above.
 Three signing identities are in play and must not be confused: `SIGNED_IDENTITY_PATCHY` (the chart, signed by patchy's
-own `helm.yaml`), `SIGNED_IDENTITY_PATCHY_IMAGES` (the images, signed by the shared release workflow) and
-`SIGNED_IDENTITY_PATCHY_MANIFESTS` (this image). All three carry `:=` defaults in the manifests.
+own `helm.yaml`), `SIGNED_IDENTITY_PATCHY_IMAGES` (the images, signed by the shared release workflow), both with `:=`
+defaults in the manifests, and the modules' `signed_identity_subject` (this image, verified by the seed).
 
 ### What the image reads from the platform
 
 `PLATFORM_COMPONENTS` (whether `dex` is elected: the status page's sign-in, the dex clients, the evaluation controller
 and the Kustomization's `dex` dependency all key off it), `PLATFORM_DOMAIN` (the dex issuer), `PLATFORM_TREE` (which
-deploy tree, and whether the aws `secret-sync` Kustomization exists to wait on), `PLATFORM_REGISTRY`, `OCI_PROVIDER`,
+tree, and whether the aws `secret-sync` Kustomization exists to wait on), `PLATFORM_REGISTRY`, `OCI_PROVIDER`,
 `ARTIFACT_TAG_PROVIDER`, the `SIGNED_IDENTITY_*` / `COSIGN_PUBLIC_KEY` signing mode, `SECRET_PREFIX`,
 `SECRETS_ROLE_PREFIX` (aws), `GCP_PROJECT` (google), `AWS_REGION` (aws), `RBAC_GROUP_*` and `KYVERNO_FAILURE_ACTION`.
 
@@ -156,9 +150,9 @@ deploy tree, and whether the aws `secret-sync` Kustomization exists to wait on),
 - **Namespaces** `patchy` (labelled `platform.bitwisemedia.uk/gateway-access: "true"`, which admits its HTTPRoutes to
   the platform Gateway's wildcard listener) and `patchy-agents` (restricted Pod Security). Both are pre-created by
   `modules/application` (labelled `app.kubernetes.io/managed-by: application-patchy`) and adopted here.
-- **The charts** (`deploy/common/resourceset.yaml`): `patchy` and `patchy-config` from ghcr, keyless-verified against
-  patchy's own chart identity. HTTPRoutes attach by hostname (`integrations.`, `status.`, `evals.` under
-  `PATCHY_DOMAIN`); there is no `sectionName`.
+- **The charts** (`common/resourceset.yaml`): `patchy` and `patchy-config` from ghcr, keyless-verified against patchy's
+  own chart identity. HTTPRoutes attach by hostname (`integrations.`, `status.`, `evals.` under `PATCHY_DOMAIN`); there
+  is no `sectionName`.
 - **RBAC** (`rbac.yaml`): RoleBindings under `patchy-*` names onto the chart-rendered `patchy-findings-*` and
   `patchy-evaluations-submitter` ClusterRoles, one per non-empty `RBAC_GROUP_*`. The cluster-wide bindings are the
   platform's.
@@ -217,11 +211,11 @@ platform). The ECR branch is skipped when `AWS_MANIFEST_PUBLISHER_ROLE` is unset
 
 ## Validation
 
-`make test` runs `scripts/validate.sh` (kustomize-builds each deploy tree, substitutes `cluster-vars` + `patchy-vars`
-fixtures from `tests/` in strict mode with the null-guard from flux-manifests, asserts the seed contract, renders every
-ResourceSet with `flux-operator build resourceset` and the fixtures under `tests/inputs/`, and kubeconforms the lot
-against the vendored CRD schemas) and then `terraform test` in both modules. `make lint` is the toolchain's license,
-prose, shell, actionlint and kubescape passes.
+`make test` runs `scripts/validate.sh` (kustomize-builds each cloud's tree, substitutes `cluster-vars` + `patchy-vars`
+fixtures from `tests/` in strict mode with the null-guard from flux-manifests, renders every ResourceSet with
+`flux-operator build resourceset` and the fixtures under `tests/inputs/`, and kubeconforms the lot against the vendored
+CRD schemas) and then `terraform test` in both modules. `make lint` is the toolchain's license, prose, shell, actionlint
+and kubescape passes.
 
 ## Moving patchy out of the cluster root
 

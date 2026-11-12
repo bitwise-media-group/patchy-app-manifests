@@ -20,17 +20,15 @@ tasks, and the repository's `tasks.toml` carries the validation surface. The `Ma
 
 ## The render harness
 
-`scripts/validate.sh` renders and validates everything a cluster would apply from this image, once per deploy tree and
+`scripts/validate.sh` renders and validates everything a cluster would apply from this image, once per cloud tree and
 signing mode (`{aws,google}` × `{keyless,keyed}`):
 
-1. **kustomize-build** the deploy tree (common + flux + the cloud overlay).
+1. **kustomize-build** the cloud's tree (common + the cloud overlay).
 2. **Substitute** `cluster-vars` and `patchy-vars` from the fixtures in `tests/` the way the seeded Kustomization does
    (`postBuild.substituteFrom`), faithfully to the controller's roundtrip. Substitution is strict, so a variable neither
    ConfigMap publishes fails; and a null guard fails any `${VAR}`-bearing scalar that would become null on a cluster.
-3. **Assert the seed contract**: the `flux/` objects carry exactly the names, namespace and prune label the
-   `modules/application` seed creates. See [The seed contract](../concepts/seed-contract.md).
-4. **Render every ResourceSet** with `flux-operator build resourceset` and the sample inputs under `tests/inputs/`.
-5. **kubeconform** the results against the Flux, flux-operator and vendored CRD schemas in `tests/schemas/`.
+3. **Render every ResourceSet** with `flux-operator build resourceset` and the sample inputs under `tests/inputs/`.
+4. **kubeconform** the results against the Flux, flux-operator and vendored CRD schemas in `tests/schemas/`.
 
 The null guard runs a self-test first, so a guard that has rotted aborts the run rather than passing silently.
 

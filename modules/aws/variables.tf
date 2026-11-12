@@ -161,29 +161,30 @@ variable "egress_policy" {
   }
 }
 
-variable "manifests_semver" {
+variable "image" {
   description = <<-EOT
-    The semver range the seed follows for this application's manifests image (version tags of
-    oci://<cluster.platform_registry>/manifests/patchy), published as PATCHY_MANIFESTS_SEMVER for the image's own
-    ResourceSetInputProvider and as the seed's range. A range matching no tag empties the seed and prunes the
-    application - keep it bounded and honest. Constraint order matters: a range must not start with '>' (YAML would
-    read the unquoted form as a folded block scalar).
+    Which builds of the manifests image (oci://<cluster.platform_registry>/manifests/patchy) the seed follows, passed
+    straight through to the cluster module's modules/application image (semver and channel only). Terraform owns the
+    seed on every apply, so this module's version moves the range in the same apply as the infrastructure the
+    manifests need. The default follows releases below 1.0.0.
+      - semver: the tag range; a range matching no tag prunes the application.
+      - channel: edge or stable. edge follows the newest <version>-edge.<yyyymmddhhmmss>.g<commit> build, every
+        build unless semver bounds it, which then needs a pre-release bound (^0.2.0-0: every edge build up to the
+        next breaking change); stable follows the newest vX.Y.Z and takes no semver.
   EOT
-  type        = string
-  nullable    = false
-  default     = "<1.0.0 >=0.1.0"
-
-  validation {
-    condition     = !startswith(var.manifests_semver, ">")
-    error_message = "manifests_semver must not start with '>' - put the upper bound first (e.g. '<1.0.0 >=0.1.0')."
-  }
+  type = object({
+    semver  = optional(string)
+    channel = optional(string)
+  })
+  nullable = false
+  default  = { semver = "<1.0.0 >=0.1.0" }
 }
 
 variable "signed_identity_subject" {
   description = <<-EOT
-    Fulcio certificate-subject regexp (keyless cosign) of the workflow that signs this application's manifests image -
-    this repo's release.yaml on main by default, which signs edge builds and (by promotion) every release. Published as SIGNED_IDENTITY_PATCHY_MANIFESTS and used as the seed's verify subject. Ignored on KMS-keyed
-    clusters (cluster.keyed), which verify against the signing key's public half instead.
+    Fulcio certificate-subject regexp (keyless cosign) of the workflow that signs the manifests image, the seed's
+    verify subject: this repo's release.yaml on main by default, which signs edge builds and (by promotion) every
+    release. Ignored on KMS-keyed clusters (cluster.keyed), which verify against the signing key's public half instead.
   EOT
   type        = string
   nullable    = false
@@ -195,7 +196,7 @@ variable "extra_vars" {
     Further patchy-vars keys merged beside the ones this module owns - the caller extras the manifests read with :=
     defaults (PATCHY_SEMVER for the chart range, PATCHY_FALLBACK_REPOSITORY, AGENT_EGRESS_BROAD, ...). Keys must be
     SCREAMING_SNAKE_CASE and must not be one of this module's own keys (AGENT_HARNESSES, AGENT_EGRESS_POLICY,
-    PATCHY_EVALUATION, PATCHY_DOMAIN, PATCHY_MANIFESTS_SEMVER, SIGNED_IDENTITY_PATCHY_MANIFESTS, CLAUDE_*): set those
+    PATCHY_EVALUATION, PATCHY_DOMAIN, CLAUDE_*): set those
     through their own inputs.
   EOT
   type        = map(string)
@@ -210,10 +211,10 @@ variable "extra_vars" {
   validation {
     condition = alltrue([
       for key in keys(var.extra_vars) :
-      !contains(["AGENT_HARNESSES", "AGENT_EGRESS_POLICY", "PATCHY_EVALUATION", "PATCHY_DOMAIN", "PATCHY_MANIFESTS_SEMVER", "SIGNED_IDENTITY_PATCHY_MANIFESTS"], key)
+      !contains(["AGENT_HARNESSES", "AGENT_EGRESS_POLICY", "PATCHY_EVALUATION", "PATCHY_DOMAIN"], key)
       && !startswith(key, "CLAUDE_")
     ])
-    error_message = "extra_vars must not set a key this module owns (AGENT_HARNESSES, AGENT_EGRESS_POLICY, PATCHY_EVALUATION, PATCHY_DOMAIN, PATCHY_MANIFESTS_SEMVER, SIGNED_IDENTITY_PATCHY_MANIFESTS, CLAUDE_*) - use its input instead."
+    error_message = "extra_vars must not set a key this module owns (AGENT_HARNESSES, AGENT_EGRESS_POLICY, PATCHY_EVALUATION, PATCHY_DOMAIN, CLAUDE_*) - use its input instead."
   }
 }
 

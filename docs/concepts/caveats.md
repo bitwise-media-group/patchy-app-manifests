@@ -12,7 +12,7 @@
   dex-client-controller, the seeded Kustomization's `dex` dependency is Ready but the `DexClient` CRD is missing, so
   `patchy-dex` fails to apply until the platform catches up.
 - **A range matching no tag uninstalls patchy.** An empty match empties the ResourceSet, which prunes the application.
-  See [The seed contract](seed-contract.md#how-the-hand-over-works).
+  See [The seed contract](seed-contract.md#how-it-works).
 - **One root only.** A second copy of the module (or a leftover `applications.patchy` in the cluster root) fails on the
   helm releases and, on aws, the IAM roles. On google, destroying one copy also removes the other's IAM grant. See
   [Installing patchy](../getting-started/installing.md#one-root-only).

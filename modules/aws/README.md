@@ -34,21 +34,21 @@ modes; see
 
 | Name | Version |
 | ---- | ------- |
-| terraform | >= 1.11, < 2.0 |
-| aws | >= 6.0, < 7.0 |
-| helm | ~> 3.0 |
+| terraform | >= 1.11, < 2 |
+| aws | >= 6.0, < 7 |
+| helm | >= 3.0, < 4 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| aws | >= 6.0, < 7.0 |
+| aws | >= 6.0, < 7 |
 
 ## Modules
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| application | git::https://github.com/bitwise-media-group/terraform-aws-eks-flux.git//modules/application | b1aa85c0553db184f6d2eb73c3403d76a9a9857b |
+| application | git::https://github.com/bitwise-media-group/terraform-aws-eks-flux.git//modules/application | 9fa078f941c9ba8ef97d38eb1fd9ebea01a80999 |
 
 ## Resources
 
@@ -70,10 +70,10 @@ modes; see
 | create\_secrets | Whether this module creates the Secrets Manager containers the image syncs. true (the default) creates them, named<br/><cluster.secret\_prefix><name>. false creates none: a durable root keeps the containers (and their out-of-band<br/>versions) across cluster rebuilds, in this provider's account and region under the same names, and this root<br/>makes only the grants. The grants are the same either way - the podless reader roles modules/application mints<br/>for the sync KSAs read every secret under cluster.secret\_prefix by name pattern - as is the container set (the<br/>secrets output lists it): the durable root must create exactly those names. | `bool` | `true` | no |
 | egress\_policy | The agent-egress network-policy dialect the patchy chart renders (none, cilium, gke, istio, auto), published as<br/>AGENT\_EGRESS\_POLICY. cilium by default: terraform-aws-eks-flux installs Cilium as the only CNI, so the answer is<br/>known for certain and the chart's auto probe need not be trusted. | `string` | `"cilium"` | no |
 | evaluation | evaluation.enabled deploys the evaluation controller - the evolve-facing remote-evaluation API plus the runners<br/>that execute submitted evaluation units - published as PATCHY\_EVALUATION. It requires sso\_enabled (the API has no<br/>unauthenticated posture; evolve authenticates through dex as a public PKCE client, the image's evolve DexClient)<br/>and at least one harness (the chart refuses an evaluation controller with zero enabled runners). | <pre>object({<br/>    enabled = optional(bool, false)<br/>  })</pre> | `{}` | no |
-| extra\_vars | Further patchy-vars keys merged beside the ones this module owns - the caller extras the manifests read with :=<br/>defaults (PATCHY\_SEMVER for the chart range, PATCHY\_FALLBACK\_REPOSITORY, AGENT\_EGRESS\_BROAD, ...). Keys must be<br/>SCREAMING\_SNAKE\_CASE and must not be one of this module's own keys (AGENT\_HARNESSES, AGENT\_EGRESS\_POLICY,<br/>PATCHY\_EVALUATION, PATCHY\_DOMAIN, PATCHY\_MANIFESTS\_SEMVER, SIGNED\_IDENTITY\_PATCHY\_MANIFESTS, CLAUDE\_*): set those<br/>through their own inputs. | `map(string)` | `{}` | no |
+| extra\_vars | Further patchy-vars keys merged beside the ones this module owns - the caller extras the manifests read with :=<br/>defaults (PATCHY\_SEMVER for the chart range, PATCHY\_FALLBACK\_REPOSITORY, AGENT\_EGRESS\_BROAD, ...). Keys must be<br/>SCREAMING\_SNAKE\_CASE and must not be one of this module's own keys (AGENT\_HARNESSES, AGENT\_EGRESS\_POLICY,<br/>PATCHY\_EVALUATION, PATCHY\_DOMAIN, CLAUDE\_*): set those<br/>through their own inputs. | `map(string)` | `{}` | no |
 | harnesses | The agent harnesses patchy runs (claude, codex, copilot), published as AGENT\_HARNESSES. Gates the chart's<br/>per-harness runners, the harness credential syncs and the containers created here, and derives the sync KSAs that<br/>get reader roles: claude is brokered (its credential lives in the patchy namespace), codex and copilot mount<br/>theirs into the agent pods, so electing either adds the patchy-agents reader. | `set(string)` | <pre>[<br/>  "claude"<br/>]</pre> | no |
-| manifests\_semver | The semver range the seed follows for this application's manifests image (version tags of<br/>oci://<cluster.platform\_registry>/manifests/patchy), published as PATCHY\_MANIFESTS\_SEMVER for the image's own<br/>ResourceSetInputProvider and as the seed's range. A range matching no tag empties the seed and prunes the<br/>application - keep it bounded and honest. Constraint order matters: a range must not start with '>' (YAML would<br/>read the unquoted form as a folded block scalar). | `string` | `"<1.0.0 >=0.1.0"` | no |
-| signed\_identity\_subject | Fulcio certificate-subject regexp (keyless cosign) of the workflow that signs this application's manifests image -<br/>this repo's release.yaml on main by default, which signs edge builds and (by promotion) every release. Published as SIGNED\_IDENTITY\_PATCHY\_MANIFESTS and used as the seed's verify subject. Ignored on KMS-keyed<br/>clusters (cluster.keyed), which verify against the signing key's public half instead. | `string` | `"^https://github.com/bitwise-media-group/patchy-app-manifests/.github/workflows/release.yaml@refs/heads/main$"` | no |
+| image | Which builds of the manifests image (oci://<cluster.platform\_registry>/manifests/patchy) the seed follows, passed<br/>straight through to the cluster module's modules/application image (semver and channel only). Terraform owns the<br/>seed on every apply, so this module's version moves the range in the same apply as the infrastructure the<br/>manifests need. The default follows releases below 1.0.0.<br/>  - semver: the tag range; a range matching no tag prunes the application.<br/>  - channel: edge or stable. edge follows the newest <version>-edge.<yyyymmddhhmmss>.g<commit> build, every<br/>    build unless semver bounds it, which then needs a pre-release bound (^0.2.0-0: every edge build up to the<br/>    next breaking change); stable follows the newest vX.Y.Z and takes no semver. | <pre>object({<br/>    semver  = optional(string)<br/>    channel = optional(string)<br/>  })</pre> | <pre>{<br/>  "semver": "<1.0.0 >=0.1.0"<br/>}</pre> | no |
+| signed\_identity\_subject | Fulcio certificate-subject regexp (keyless cosign) of the workflow that signs the manifests image, the seed's<br/>verify subject: this repo's release.yaml on main by default, which signs edge builds and (by promotion) every<br/>release. Ignored on KMS-keyed clusters (cluster.keyed), which verify against the signing key's public half instead. | `string` | `"^https://github.com/bitwise-media-group/patchy-app-manifests/.github/workflows/release.yaml@refs/heads/main$"` | no |
 | sso\_enabled | Whether the cluster deploys dex (terraform-aws-eks-flux's sso.enabled). When on, the seed's Kustomization waits on the<br/>platform's dex Kustomization, whose dex-client-controller registers the DexClients the image ships (patchy-status,<br/>and patchy-evolve under evaluation). When off, the status server runs rollups-only (no sign-in) and evaluation is<br/>refused. | `bool` | `false` | no |
 | tags | Tags applied to every secret this module creates, IAM role and Pod Identity association. | `map(string)` | `{}` | no |
 
@@ -81,9 +81,9 @@ modes; see
 
 | Name | Description |
 | ---- | ----------- |
-| release | The bootstrap-only seed release (application-patchy) in the cluster's flux namespace. |
+| release | The seed release (application-patchy) in the cluster's flux namespace, reconciled by every apply. |
 | secret\_reader\_roles | The podless secret-sync reader role ARNs, keyed <namespace>/<service\_account>: patchy/patchy-secrets always, plus<br/>patchy-agents/patchy-secrets under codex or copilot. |
 | secrets | The credential containers the image syncs, keyed by unprefixed name: the (prefixed) Secrets Manager name, the ARN<br/>(null when create\_secrets is false - the module did not create it) and the name-pattern ARN<br/>(arn:...:secret:<name>-??????) that matches it either way, for wiring further IAM in the caller (e.g. a<br/>maintainer's PutSecretValue rotation grant). Listed in both modes, so a durable root can create exactly this set.<br/>Every version is added out of band: aws secretsmanager put-secret-value --secret-id <name>. |
-| vars | The patchy-vars ConfigMap contents: every application-owned key the manifests substitute - AGENT\_*, PATCHY\_*,<br/>CLAUDE\_*, the manifests semver range and signing subject - plus extra\_vars. |
+| vars | The patchy-vars ConfigMap contents: every application-owned key the manifests substitute - AGENT\_*, PATCHY\_*,<br/>and CLAUDE\_* - plus extra\_vars. |
 | workload\_roles | The Pod Identity-bound IAM role ARNs, keyed by grant: patchy-egress-broker (the Bedrock invoke grant) exactly when<br/>claude.provider is bedrock. |
 <!-- END_TF_DOCS -->

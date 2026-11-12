@@ -17,11 +17,11 @@
 # modules/application (the module call below):
 #
 #   - the Secrets Manager containers the image syncs
-#     (deploy/aws/resourceset-secrets.yaml), named under cluster.secret_prefix
+#     (aws/resourceset-secrets.yaml), named under cluster.secret_prefix
 #     (unless create_secrets is false: a durable root then holds them under
 #     the same names, in this provider's account and region)
-#   - the seed (application-patchy: the patchy-manifests RSIP + ResourceSet
-#     the image adopts on its first reconcile), the patchy-vars ConfigMap and
+#   - the seed (application-patchy: the patchy-manifests RSIP + ResourceSet,
+#     reconciled on every apply), the patchy-vars ConfigMap and
 #     the pre-created patchy / patchy-agents namespaces
 #   - the podless IRSA reader roles the sync KSAs assume
 #     (<cluster>-secrets-<ns>-<sa>, what ${SECRETS_ROLE_PREFIX}<ns>-<sa>
@@ -29,7 +29,7 @@
 #   - the egress-broker's Bedrock grant, under that provider
 #
 # patchy's dex clients are not declared here: the image ships them as
-# DexClient objects (deploy/common/resourceset-dex.yaml), and the platform's
+# DexClient objects (common/resourceset-dex.yaml), and the platform's
 # dex-client-controller generates their secrets in-cluster.
 #
 # The credential VERSIONS are added out of band (aws secretsmanager
@@ -120,8 +120,6 @@ locals {
     CLAUDE_BEDROCK_REGION_PREFIX = var.claude.bedrock_region_prefix != null ? var.claude.bedrock_region_prefix : ""
     CLAUDE_MODEL_MAP             = join(",", [for k in sort(keys(var.claude.model_map)) : "${k}=${var.claude.model_map[k]}"])
 
-    PATCHY_MANIFESTS_SEMVER          = var.manifests_semver
-    SIGNED_IDENTITY_PATCHY_MANIFESTS = var.signed_identity_subject
   }
 
   # The podless sync KSAs: the patchy-namespace reader always (the GitHub
@@ -186,14 +184,17 @@ data "aws_iam_policy_document" "bedrock_invoke" {
 # ConfigMap patchy-vars, roles <cluster>-<key>) is the one the manifests
 # expect.
 module "application" {
-  source = "git::https://github.com/bitwise-media-group/terraform-aws-eks-flux.git//modules/application?ref=b1aa85c0553db184f6d2eb73c3403d76a9a9857b"
+  source = "git::https://github.com/bitwise-media-group/terraform-aws-eks-flux.git//modules/application?ref=9fa078f941c9ba8ef97d38eb1fd9ebea01a80999"
 
   name    = "patchy"
   cluster = var.cluster
 
   image = {
-    url    = "oci://${var.cluster.platform_registry}/manifests/patchy"
-    semver = var.manifests_semver
+    url     = "oci://${var.cluster.platform_registry}/manifests/patchy"
+    semver  = var.image.semver
+    channel = var.image.channel
+    # the image's per-cloud tree sits at its root (./aws, ./google)
+    path = "./${var.cluster.tree}"
     # the first install also waits on the secret syncs materialising the
     # chart's Secrets (the image's own Kustomization carries the same 10m)
     timeout = "10m"

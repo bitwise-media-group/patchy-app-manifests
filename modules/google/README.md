@@ -33,21 +33,21 @@ To keep the containers (and their versions) across cluster rebuilds, create them
 
 | Name | Version |
 | ---- | ------- |
-| terraform | >= 1.11, < 2.0 |
-| google | >= 7.46, < 8.10 |
-| helm | ~> 3.0 |
+| terraform | >= 1.11, < 2 |
+| google | >= 7.46, < 9 |
+| helm | >= 3.0, < 4 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| google | >= 7.46, < 8.10 |
+| google | >= 7.46, < 9 |
 
 ## Modules
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| application | git::https://github.com/bitwise-media-group/terraform-google-gke-flux.git//modules/application | d74b5323d24b795a644a184a57aa85ea109e3de2 |
+| application | git::https://github.com/bitwise-media-group/terraform-google-gke-flux.git//modules/application | 223fab7691bf460fcc04c5f0991f76b9f23e640d |
 
 ## Resources
 
@@ -66,19 +66,19 @@ To keep the containers (and their versions) across cluster rebuilds, create them
 | create\_secrets | Whether this module creates the Secret Manager containers the image syncs. true (the default) creates them in<br/>cluster.project, named <cluster.secret\_prefix><name>, and grants the sync KSAs secretAccessor on each. false<br/>creates no containers and grants on existing ones by that same name - for a durable root that keeps the<br/>containers (and their out-of-band versions) across cluster rebuilds, while this disposable root makes only the<br/>grants. The container set is the same either way (the secrets output lists it): the durable root must create<br/>exactly those names. | `bool` | `true` | no |
 | egress\_policy | The agent-egress network-policy dialect the patchy chart renders (none, cilium, gke, istio, auto), published as<br/>AGENT\_EGRESS\_POLICY. auto by default: on GKE the chart probes the cluster for FQDNNetworkPolicy support; pin gke<br/>where the cluster is known to enforce it. | `string` | `"auto"` | no |
 | evaluation | evaluation.enabled deploys the evaluation controller, published as PATCHY\_EVALUATION. It requires sso\_enabled<br/>(evolve authenticates through dex as a public PKCE client, the image's evolve DexClient) and at least one harness. | <pre>object({<br/>    enabled = optional(bool, false)<br/>  })</pre> | `{}` | no |
-| extra\_vars | Further patchy-vars keys merged beside the ones this module owns - the caller extras the manifests read with :=<br/>defaults (PATCHY\_SEMVER for the chart range, PATCHY\_FALLBACK\_REPOSITORY, AGENT\_EGRESS\_BROAD, the SCC\_* pipeline<br/>values from modules/scc-notifications, ...). Keys must be SCREAMING\_SNAKE\_CASE and must not be one of this<br/>module's own keys (AGENT\_HARNESSES, AGENT\_EGRESS\_POLICY, PATCHY\_EVALUATION, PATCHY\_DOMAIN, PATCHY\_MANIFESTS\_SEMVER,<br/>SIGNED\_IDENTITY\_PATCHY\_MANIFESTS, CLAUDE\_*): set those through their own inputs. | `map(string)` | `{}` | no |
+| extra\_vars | Further patchy-vars keys merged beside the ones this module owns - the caller extras the manifests read with :=<br/>defaults (PATCHY\_SEMVER for the chart range, PATCHY\_FALLBACK\_REPOSITORY, AGENT\_EGRESS\_BROAD, the SCC\_* pipeline<br/>values from modules/scc-notifications, ...). Keys must be SCREAMING\_SNAKE\_CASE and must not be one of this<br/>module's own keys (AGENT\_HARNESSES, AGENT\_EGRESS\_POLICY, PATCHY\_EVALUATION, PATCHY\_DOMAIN, CLAUDE\_*): set those through their own inputs. | `map(string)` | `{}` | no |
 | harnesses | The agent harnesses patchy runs (claude, codex, copilot), published as AGENT\_HARNESSES. Gates the chart's<br/>per-harness runners, the harness credential syncs and the containers (and accessor grants) created here. | `set(string)` | <pre>[<br/>  "claude"<br/>]</pre> | no |
+| image | Which builds of the manifests image (oci://<cluster.platform\_registry>/manifests/patchy) the seed follows, passed<br/>straight through to the cluster module's modules/application image (semver and channel only). Terraform owns the<br/>seed on every apply, so this module's version moves the range in the same apply as the infrastructure the<br/>manifests need. The default follows releases below 1.0.0.<br/>  - semver: the tag range; a range matching no tag prunes the application.<br/>  - channel: edge or stable. edge follows the newest <version>-edge.<yyyymmddhhmmss>.g<commit> build, every<br/>    build unless semver bounds it, which then needs a pre-release bound (^0.2.0-0: every edge build up to the<br/>    next breaking change); stable follows the newest vX.Y.Z and takes no semver. | <pre>object({<br/>    semver  = optional(string)<br/>    channel = optional(string)<br/>  })</pre> | <pre>{<br/>  "semver": "<1.0.0 >=0.1.0"<br/>}</pre> | no |
 | labels | Labels applied to every secret container this module creates (none when create\_secrets is false). | `map(string)` | `{}` | no |
-| manifests\_semver | The semver range the seed follows for the manifests image (PATCHY\_MANIFESTS\_SEMVER); a range matching no tag prunes the application. | `string` | `"<1.0.0 >=0.1.0"` | no |
-| signed\_identity\_subject | Fulcio certificate-subject regexp of the workflow that signs the manifests image (SIGNED\_IDENTITY\_PATCHY\_MANIFESTS,<br/>and the seed's verify subject); this repo's release.yaml on main by default, which signs edge builds and (by<br/>promotion) every release. Ignored on KMS-keyed clusters<br/>(cluster.keyed), which verify against the signing key's public half instead. | `string` | `"^https://github.com/bitwise-media-group/patchy-app-manifests/.github/workflows/release.yaml@refs/heads/main$"` | no |
+| signed\_identity\_subject | Fulcio certificate-subject regexp (keyless cosign) of the workflow that signs the manifests image, the seed's<br/>verify subject: this repo's release.yaml on main by default, which signs edge builds and (by promotion) every<br/>release. Ignored on KMS-keyed clusters (cluster.keyed), which verify against the signing key's public half instead. | `string` | `"^https://github.com/bitwise-media-group/patchy-app-manifests/.github/workflows/release.yaml@refs/heads/main$"` | no |
 | sso\_enabled | Whether the cluster deploys dex (terraform-google-gke-flux's sso.enabled). When on, the seed's Kustomization waits<br/>on the platform's dex Kustomization, whose dex-client-controller registers the DexClients the image ships<br/>(patchy-status, and patchy-evolve under evaluation). When off, the status server runs rollups-only and evaluation<br/>is refused. | `bool` | `false` | no |
 
 ## Outputs
 
 | Name | Description |
 | ---- | ----------- |
-| release | The bootstrap-only seed release (application-patchy) in the cluster's flux namespace. |
+| release | The seed release (application-patchy) in the cluster's flux namespace, reconciled by every apply. |
 | secrets | The credential containers the image syncs, keyed by unprefixed name: the resource id<br/>(projects/<project>/secrets/<secret\_id>) and the (prefixed) secret id. Listed whether this module created them or<br/>(create\_secrets = false) only granted on them, so a durable root can create exactly this set. Versions are added<br/>out of band: gcloud secrets versions add <secret\_id> --project <project> --data-file=-. |
-| vars | The patchy-vars ConfigMap contents: every application-owned key the manifests substitute - AGENT\_*, PATCHY\_*,<br/>CLAUDE\_*, the manifests semver range and signing subject - plus extra\_vars. |
+| vars | The patchy-vars ConfigMap contents: every application-owned key the manifests substitute - AGENT\_*, PATCHY\_*,<br/>and CLAUDE\_* - plus extra\_vars. |
 | workload\_members | The direct Workload Identity Federation principal of each workload grant, keyed by grant: patchy-egress-broker<br/>(aiplatform.user in the serving project) exactly when claude.provider is vertex. |
 <!-- END_TF_DOCS -->

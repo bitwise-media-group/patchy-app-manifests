@@ -71,7 +71,7 @@ spec:
               # IMAGES are signed by the shared release workflow and carry a
               # different identity (SIGNED_IDENTITY_PATCHY_IMAGES in
               # policy.yaml); THIS image's manifests are signed by a third
-              # (SIGNED_IDENTITY_PATCHY_MANIFESTS in ../../flux)
+              # (the seed's verify subject, modules/{aws,google})
               subject: '${SIGNED_IDENTITY_PATCHY:=^https://github\.com/bitwise-media-group/patchy/}'
     - apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease

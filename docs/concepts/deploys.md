@@ -1,7 +1,7 @@
 # What the image deploys
 
-Everything below is applied by `Kustomization/patchy` from `./deploy/<PLATFORM_TREE>`. The common tree is cloud-neutral;
-the per-cloud trees add `../../flux` and their secret-sync dialect.
+Everything below is applied by `Kustomization/patchy` from `./<PLATFORM_TREE>` (`./aws` or `./google`). The common tree
+is cloud-neutral; the per-cloud trees add their secret-sync dialect.
 
 ## Namespaces
 
@@ -14,9 +14,9 @@ here.
 
 ## The charts
 
-`deploy/common/resourceset.yaml` releases `patchy` and `patchy-config` from ghcr, keyless-verified against patchy's own
-chart identity. HTTPRoutes attach by hostname (`integrations.`, `status.` and `evals.` under `PATCHY_DOMAIN`); there is
-no `sectionName`.
+`common/resourceset.yaml` releases `patchy` and `patchy-config` from ghcr, keyless-verified against patchy's own chart
+identity. HTTPRoutes attach by hostname (`integrations.`, `status.` and `evals.` under `PATCHY_DOMAIN`); there is no
+`sectionName`.
 
 ## RBAC
 

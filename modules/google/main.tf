@@ -20,7 +20,7 @@
 # aiplatform.user grant.
 #
 # The Secret Manager containers the image syncs
-# (deploy/google/resourceset-secrets.yaml) are created here in
+# (google/resourceset-secrets.yaml) are created here in
 # cluster.project, named under cluster.secret_prefix - unless create_secrets
 # is false, when a durable root already holds them under the same names. The
 # read grant is resource-side either way: GKE Integrated Secret
@@ -29,7 +29,7 @@
 # that syncs it, granted here by name.
 #
 # patchy's dex clients are not declared here: the image ships them as
-# DexClient objects (deploy/common/resourceset-dex.yaml), and the platform's
+# DexClient objects (common/resourceset-dex.yaml), and the platform's
 # dex-client-controller generates their secrets in-cluster.
 #
 # The credential VERSIONS are added out of band (gcloud secrets versions add -
@@ -72,8 +72,6 @@ locals {
     CLAUDE_VERTEX_PROJECT_ID = local.vertex ? coalesce(var.claude.vertex_project_id, var.cluster.project) : ""
     CLAUDE_MODEL_MAP         = join(",", [for k in sort(keys(var.claude.model_map)) : "${k}=${var.claude.model_map[k]}"])
 
-    PATCHY_MANIFESTS_SEMVER          = var.manifests_semver
-    SIGNED_IDENTITY_PATCHY_MANIFESTS = var.signed_identity_subject
   }
 
   # The egress-broker's Vertex grant, present exactly when the provider is
@@ -117,14 +115,17 @@ resource "google_secret_manager_secret_iam_member" "sync" {
 # application module: every name it mints (release application-patchy,
 # ConfigMap patchy-vars) is the one the manifests expect.
 module "application" {
-  source = "git::https://github.com/bitwise-media-group/terraform-google-gke-flux.git//modules/application?ref=d74b5323d24b795a644a184a57aa85ea109e3de2"
+  source = "git::https://github.com/bitwise-media-group/terraform-google-gke-flux.git//modules/application?ref=223fab7691bf460fcc04c5f0991f76b9f23e640d"
 
   name    = "patchy"
   cluster = var.cluster
 
   image = {
-    url    = "oci://${var.cluster.platform_registry}/manifests/patchy"
-    semver = var.manifests_semver
+    url     = "oci://${var.cluster.platform_registry}/manifests/patchy"
+    semver  = var.image.semver
+    channel = var.image.channel
+    # the image's per-cloud tree sits at its root (./aws, ./google)
+    path = "./${var.cluster.tree}"
     # the first install also waits on the secret syncs materialising the
     # chart's Secrets (the image's own Kustomization carries the same 10m)
     timeout = "10m"

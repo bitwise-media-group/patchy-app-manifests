@@ -1,14 +1,14 @@
 # Overview
 
-patchy-app-manifests publishes [patchy](https://github.com/bitwise-media-group/patchy) as a self-owned **application
-image** for the platform clusters. The image, `oci://<registry>/manifests/patchy`, is a cosign-signed OCI artifact
-holding everything patchy deploys on a cluster: the chart releases, the secret syncs, the RBAC bindings and the
-image-verification policy, plus its own flux self-definition.
+patchy-app-manifests publishes [patchy](https://github.com/bitwise-media-group/patchy) as an **application image** for
+the platform clusters. The image, `oci://<registry>/manifests/patchy`, is a cosign-signed OCI artifact holding
+everything patchy deploys on a cluster: the chart releases, the secret syncs, the RBAC bindings and the
+image-verification policy.
 
 The terraform modules under `modules/` install it onto a cluster as a self-contained application. They seed the image
-once, and flux owns it from then on. They also create everything it needs outside the cluster (secret containers, IAM
-grants and the `patchy-vars` ConfigMap) through the cluster modules' generic `modules/application`. The cluster module
-itself has no knowledge of patchy.
+and pick which builds it follows on every apply. They also create everything it needs outside the cluster (secret
+containers, IAM grants and the `patchy-vars` ConfigMap) through the cluster modules' generic `modules/application`. The
+cluster module itself has no knowledge of patchy.
 
 ## Why a separate image
 
@@ -28,14 +28,13 @@ flowchart LR
   app["modules/application<br/>(cluster module)"]
   img[("Platform registry<br/>manifests/patchy")]
   flux["flux-system<br/>RSIP + ResourceSet<br/>patchy-manifests"]
-  ks["Kustomization/patchy<br/>./deploy/&lt;PLATFORM_TREE&gt;"]
+  ks["Kustomization/patchy<br/>./&lt;PLATFORM_TREE&gt;"]
   ci["release.yaml<br/>keyless cosign"]
   tf -- "seed + patchy-vars<br/>secrets · IAM" --> app
-  app -- "bootstrap only" --> flux
+  app -- "every apply" --> flux
   ci -- "vX.Y.Z" --> img
   flux -- "newest semver match<br/>digest-pinned, verified" --> img
   flux --> ks
-  ks -. "adopts its own parents" .-> flux
 ```
 
 | Repository                                                                                    | Role                                                                                      |
@@ -49,10 +48,9 @@ flowchart LR
 
 ```text
 manifests/                            <- the image root (flux push artifact --path manifests)
-  flux/                               the self-definition (RSIP + ResourceSet)
-  deploy/common/                      cloud-neutral: namespaces, chart releases, rbac, policy
-  deploy/aws/                         + ../../flux, the aws secret-sync dialect (Secrets Store CSI + SecretSync)
-  deploy/google/                      + ../../flux, GKE Integrated Secret Synchronization, HealthCheckPolicies
+  common/                             cloud-neutral: namespaces, chart releases, rbac, policy
+  aws/                                + ../common, the aws secret-sync dialect (Secrets Store CSI + SecretSync)
+  google/                             + ../common, GKE Integrated Secret Synchronization, HealthCheckPolicies
 modules/aws, modules/google           the installers: one module call against a cluster's application_target
 modules/scc-notifications             standalone, google-only: Security Command Center findings to patchy
 scripts/validate.sh, tests/           the render + schema harness (make test)
@@ -60,8 +58,8 @@ patchy.yaml, .github/workflows       the release pipeline (patchy build: edge bu
 docs/ · zensical.toml · overrides/    this site
 ```
 
-`deploy/common` may not branch on cloud. The one cloud-shaped value it needs, the KMS URI scheme of the keyed attestor,
-keys off `OCI_PROVIDER`, which the aws platform publishes and google leaves to the `gcp` default.
+`common` may not branch on cloud. The one cloud-shaped value it needs, the KMS URI scheme of the keyed attestor, keys
+off `OCI_PROVIDER`, which the aws platform publishes and google leaves to the `gcp` default.
 
 ## Prerequisites
 
@@ -76,5 +74,5 @@ keys off `OCI_PROVIDER`, which the aws platform publishes and google leaves to t
 ## Next steps
 
 - [Install patchy](installing.md) onto a cluster.
-- Read [The seed contract](../concepts/seed-contract.md) for how terraform hands the application over to flux.
+- Read [The seed contract](../concepts/seed-contract.md) for what terraform owns and what the image owns.
 - Check [What the image deploys](../concepts/deploys.md) for the objects that land on the cluster.
