@@ -4,4 +4,5 @@
 # dex and the evaluation controller elected: both DexClients and the status
 # server's auth ConfigMap render - the widest render.
 - components: dex,flux-web
-  evaluation: "true"
+  # a boolean, as the cluster delivers it (see the manifest's inputs)
+  evaluation: true

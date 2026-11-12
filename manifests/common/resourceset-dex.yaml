@@ -39,6 +39,9 @@ metadata:
 spec:
   inputs:
     - components: "${PLATFORM_COMPONENTS}"
+      # Arrives as a YAML boolean, not the string: kustomize drops the quotes
+      # before substitution, so "true" lands as true. The template compares
+      # through toString, which reads either.
       evaluation: "${PATCHY_EVALUATION:=false}"
   resourcesTemplate: |
     << if has "dex" (splitList "," inputs.components) >>
@@ -65,7 +68,7 @@ spec:
           issuerURL: https://dex.${PLATFORM_DOMAIN}
           clientID: patchy-status
           clientSecretFile: /etc/patchy/auth/client-secret
-    << if eq inputs.evaluation "true" >>
+    << if eq (toString inputs.evaluation) "true" >>
     ---
     apiVersion: dex.bitwisemedia.uk/v1alpha1
     kind: DexClient

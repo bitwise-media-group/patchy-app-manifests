@@ -4,4 +4,5 @@
 # dex without the evaluation controller: the status client and its auth
 # ConfigMap only, no evolve client.
 - components: dex,flux-web
-  evaluation: "false"
+  # a boolean, as the cluster delivers it (see the manifest's inputs)
+  evaluation: false

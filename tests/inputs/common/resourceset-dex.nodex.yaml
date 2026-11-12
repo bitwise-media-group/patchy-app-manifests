@@ -3,4 +3,4 @@
 
 # No dex: the DexClient CRD does not exist, so nothing may render.
 - components: flux-web
-  evaluation: "true"
+  evaluation: true
