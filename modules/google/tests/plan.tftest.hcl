@@ -25,7 +25,7 @@ variables {
     secret_prefix     = ""
   }
 
-  domain = "patchy.bitwisemedia.co.uk"
+  domain = "patchy.bitwisemedia.uk"
 }
 
 run "default_election" {
@@ -185,11 +185,11 @@ run "extra_vars_merge" {
   command = plan
 
   variables {
-    extra_vars = { SCC_PUSH_AUDIENCE = "https://integrations.patchy.bitwisemedia.co.uk" }
+    extra_vars = { SCC_PUSH_AUDIENCE = "https://integrations.patchy.bitwisemedia.uk" }
   }
 
   assert {
-    condition     = output.vars.SCC_PUSH_AUDIENCE == "https://integrations.patchy.bitwisemedia.co.uk" && output.vars.AGENT_HARNESSES == "claude"
+    condition     = output.vars.SCC_PUSH_AUDIENCE == "https://integrations.patchy.bitwisemedia.uk" && output.vars.AGENT_HARNESSES == "claude"
     error_message = "caller extras ride patchy-vars beside the module's own keys"
   }
 }

@@ -50,7 +50,7 @@ variables {
     secret_prefix     = ""
   }
 
-  domain = "patchy.bitwisemedia.co.uk"
+  domain = "patchy.bitwisemedia.uk"
 }
 
 run "default_election" {
@@ -194,7 +194,7 @@ run "vars_contract" {
   }
 
   assert {
-    condition     = output.vars.PATCHY_EVALUATION == "false" && output.vars.PATCHY_DOMAIN == "patchy.bitwisemedia.co.uk"
+    condition     = output.vars.PATCHY_EVALUATION == "false" && output.vars.PATCHY_DOMAIN == "patchy.bitwisemedia.uk"
     error_message = "the evaluation toggle publishes the literal false and the served host passes through"
   }
 
