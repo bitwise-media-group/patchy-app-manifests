@@ -154,9 +154,9 @@ spec:
               codex:
                 # defaults: patchy-openai / api-key as OPENAI_API_KEY. The
                 # CODEX_API_KEY and CODEX_ACCESS_TOKEN channels (a ChatGPT
-                # workspace token rather than a platform API key) are only in
-                # the chart's schema after 0.7.0 - raise the semver floor in
-                # input-provider.yaml before selecting one.
+                # workspace token rather than a platform API key) are in the
+                # chart's schema from 0.7.0, below the input provider's
+                # floor, so either may be selected here.
                 enabled: << has "codex" (splitList "," "${AGENT_HARNESSES:=claude}") >>
               copilot:
                 # defaults: patchy-copilot / token as COPILOT_GITHUB_TOKEN.
@@ -331,13 +331,17 @@ spec:
             # Secrets, and the claude egress broker in lockstep. Images
             # stay on the chart defaults
             # (ghcr.io/bitwise-media-group/evolve-runner-<harness>).
+            #
+            # No copilot entry, unlike agent.runners: chart 0.14.0 dropped
+            # the copilot evaluation runner, and this object is strict, so
+            # even `copilot: {enabled: false}` fails the release outright.
+            # An elected copilot harness still runs agent Jobs, just not
+            # evaluation units.
             runners:
               claude:
                 enabled: << has "claude" (splitList "," "${AGENT_HARNESSES:=claude}") >>
               codex:
                 enabled: << has "codex" (splitList "," "${AGENT_HARNESSES:=claude}") >>
-              copilot:
-                enabled: << has "copilot" (splitList "," "${AGENT_HARNESSES:=claude}") >>
           statusServer:
             # the human edge, deliberately a separate hostname from the
             # webhook's: this one authenticates people, that one HMAC-signed
