@@ -214,9 +214,10 @@ platform). The ECR branch is skipped when `AWS_MANIFEST_PUBLISHER_ROLE` is unset
 
 `make test` runs `scripts/validate.sh` (kustomize-builds each cloud's tree, substitutes `cluster-vars` + `patchy-vars`
 fixtures from `tests/` in strict mode with the null-guard from flux-manifests, renders every ResourceSet with
-`flux-operator build resourceset` and the fixtures under `tests/inputs/`, and kubeconforms the lot against the vendored
-CRD schemas) and then `terraform test` in both modules. `make lint` is the toolchain's license, prose, shell, actionlint
-and kubescape passes.
+`flux-operator build resourceset` and the fixtures under `tests/inputs/`, kubeconforms the lot against the vendored CRD
+schemas, and helm-templates each HelmRelease's values against its chart at the floor and newest tag of the input
+provider's range) and then `terraform test` in both modules. `make lint` is the toolchain's license, prose, shell,
+actionlint and kubescape passes.
 
 ## Moving patchy out of the cluster root
 

@@ -29,8 +29,16 @@ signing mode (`{aws,google}` × `{keyless,keyed}`):
    ConfigMap publishes fails; and a null guard fails any `${VAR}`-bearing scalar that would become null on a cluster.
 3. **Render every ResourceSet** with `flux-operator build resourceset` and the sample inputs under `tests/inputs/`.
 4. **kubeconform** the results against the Flux, flux-operator and vendored CRD schemas in `tests/schemas/`.
+5. **helm-template** every rendered HelmRelease's values against its real chart, pulled from the OCIRepository's URL, at
+   both ends of the `patchy` input provider's semver range: the floor and the newest tag the range admits today.
+   kubeconform only sees the HelmRelease object; the chart's strict `values.schema.json` is what decides whether
+   helm-controller can install it, and a value it rejects strands the cluster on its previous release.
 
 The null guard runs a self-test first, so a guard that has rotted aborts the run rather than passing silently.
+
+Step 5 needs network access to the chart registry. Because it follows the newest chart, a new upstream chart release
+whose schema these manifests no longer satisfy fails the harness on the next run, even with no change in this
+repository. That is the point: the failure reaches CI before it reaches a cluster.
 
 ## The module tests
 

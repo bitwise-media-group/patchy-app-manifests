@@ -14,6 +14,12 @@
 #   3. render every ResourceSet with sample inputs (flux-operator CLI)
 #   4. kubeconform the results against Flux + flux-operator + CRD schemas
 #      (the toolchain's kubeconform.sh)
+#   5. helm-template every rendered HelmRelease's values against the real
+#      charts at both ends of the input provider's semver range - the floor
+#      and the newest tag it admits today - so a chart whose strict values
+#      schema rejects these manifests fails here rather than stranding a
+#      cluster on its previous release (needs network: the charts are pulled
+#      from their OCIRepository URLs)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,6 +33,7 @@ command -v kustomize >/dev/null || { echo "kustomize not found" >&2; exit 1; }
 command -v kubeconform >/dev/null || { echo "kubeconform not found" >&2; exit 1; }
 command -v flux-operator >/dev/null || { echo "flux-operator CLI not found" >&2; exit 1; }
 command -v yq >/dev/null || { echo "yq not found" >&2; exit 1; }
+command -v helm >/dev/null || { echo "helm not found" >&2; exit 1; }
 
 # Substitute vars the way kustomize-controller's postBuild does on a real
 # cluster: strict (a bare ${VAR} that neither ConfigMap publishes fails, as it
@@ -113,5 +120,56 @@ echo ">> kubeconform"
 # Nothing is skipped (KUBECONFORM_SKIP empty): this image ships no CRDs.
 KUBECONFORM_SCHEMAS="$ROOT/tests/schemas" KUBECONFORM_SKIP="" "$HELPERS/kubeconform.sh" \
   "$BUILD"/*/deploy.yaml "$BUILD"/*/rendered-*.yaml
+
+# kubeconform only sees the HelmRelease object; the chart's own
+# values.schema.json (strict, additionalProperties: false) is what decides
+# whether helm-controller can install it. Both charts version in lockstep off
+# the patchy ResourceSetInputProvider, so its substituted range picks the
+# versions for every HelmRelease here.
+CHARTS="$BUILD/charts"
+mkdir -p "$CHARTS"
+
+chart_versions() { # chart_versions <oci-url> <semver-range>: floor + newest
+  local url="$1" range="$2" cache floor newest
+  # resolved once per chart and range, not once per pass
+  cache="$CHARTS/${url##*/}@${range//[^0-9A-Za-z.]/_}.versions"
+  if [[ ! -f "$cache" ]]; then
+    floor="$(sed -nE 's/.*>=[[:space:]]*v?([0-9][^[:space:]]*).*/\1/p' <<< "$range")"
+    newest="$(helm show chart "$url" --version "$range" 2> "$cache.err" | yq '.version')" || true
+    [[ -n "$newest" && "$newest" != "null" ]] || { cat "$cache.err" >&2; echo "no $url tag matches $range" >&2; return 1; }
+    printf '%s\n' ${floor:+"$floor"} "$newest" | sort -u > "$cache"
+  fi
+  cat "$cache"
+}
+
+check_charts() { # check_charts <pass-dir>
+  local dir="$1" range file ns name kind ref url versions version tgz
+  range="$(yq 'select(.kind == "ResourceSetInputProvider" and .metadata.name == "patchy") | .spec.filter.semver' "$dir/deploy.yaml")"
+  [[ -n "$range" ]] || { echo "no patchy ResourceSetInputProvider in $dir/deploy.yaml" >&2; return 1; }
+  for file in "$dir"/deploy.yaml "$dir"/rendered-*.yaml; do
+    while read -r ns name kind ref; do
+      [[ -n "$name" ]] || continue
+      [[ "$kind" == "OCIRepository" ]] || { echo "$file: HelmRelease $name: unhandled chartRef kind $kind" >&2; return 1; }
+      url="$(REF="$ref" yq 'select(.kind == "OCIRepository" and .metadata.name == strenv(REF)) | .spec.url' "$file")"
+      [[ -n "$url" ]] || { echo "$file: HelmRelease $name: OCIRepository $ref not rendered alongside it" >&2; return 1; }
+      NAME="$name" yq 'select(.kind == "HelmRelease" and .metadata.name == strenv(NAME)) | .spec.values // {}' "$file" \
+        > "$dir/values-$name.yaml"
+      versions="$(chart_versions "$url" "$range")" || return 1
+      for version in $versions; do
+        tgz="$CHARTS/${url##*/}-$version.tgz"
+        [[ -f "$tgz" ]] || helm pull "$url" --version "$version" -d "$CHARTS" > /dev/null 2> "$tgz.err" \
+          || { cat "$tgz.err" >&2; return 1; }
+        echo ">> [$(basename "$dir")] $name values vs ${url##*/} $version"
+        helm template "$name" "$tgz" --namespace "$ns" -f "$dir/values-$name.yaml" > /dev/null \
+          || { echo "$file: HelmRelease $name: values rejected by ${url##*/} $version" >&2; return 1; }
+      done
+    done < <(yq -N 'select(.kind == "HelmRelease") | [.metadata.namespace, .metadata.name, .spec.chartRef.kind, .spec.chartRef.name] | join(" ")' "$file")
+  done
+}
+
+echo ">> chart values schemas"
+for dir in "$BUILD"/*-keyless "$BUILD"/*-keyed; do
+  check_charts "$dir"
+done
 
 echo ">> validation clean"

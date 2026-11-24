@@ -67,8 +67,8 @@ off `OCI_PROVIDER`, which the aws platform publishes and google leaves to the `g
   `application_target` output.
 - **A flux-manifests release** the image is compatible with. Dex clients need one that runs the dex-client-controller;
   see [Caveats](../concepts/caveats.md).
-- **mise** (`brew install mise`) to work on this repository. Every other tool is pinned: kustomize, kubeconform, yq and
-  the flux-operator CLI in the root `mise.toml`, and terraform, uv and the linters via the shared
+- **mise** (`brew install mise`) to work on this repository. Every other tool is pinned: kustomize, kubeconform, yq,
+  helm and the flux-operator CLI in the root `mise.toml`, and terraform, uv and the linters via the shared
   [toolchain](https://oss.bitwisemedia.uk/toolchain/) mounted at `.mise/`.
 
 ## Next steps

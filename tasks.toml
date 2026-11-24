@@ -17,7 +17,7 @@ run = [{ task = "test-manifests" }, { task = "test-modules" }]
 # The harness renders through the archetype's Flux helpers
 # (.mise/archetypes/containers/scripts/flux-substitute.sh and kubeconform.sh).
 [test-manifests]
-description = "kustomize build, cluster-vars + patchy-vars substitution, resourceset render, kubeconform"
+description = "kustomize build, cluster-vars + patchy-vars substitution, resourceset render, kubeconform, chart values schemas"
 dir = "{{config_root}}"
 run = "./scripts/validate.sh"
 
