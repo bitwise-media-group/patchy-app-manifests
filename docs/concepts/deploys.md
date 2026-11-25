@@ -36,10 +36,6 @@ platform's.
 Every image is still verified by exactly one policy. The exception is scoped on `request.namespace`, so it also covers
 the Deployments, ReplicaSets, Jobs and CronJobs Kyverno checks on the pods' behalf, not just the pods.
 
-A pre-CEL `kyverno.io/v2` exception ships alongside it, so patchy stays exempt on clusters still running the platform's
-old `ClusterPolicy`. It covers the auto-generated controller rules as well; before, every patchy Deployment and
-ReplicaSet was reported failing. It goes once every cluster runs the platform's CEL release.
-
 ## Dex clients
 
 Rendered on dex clusters only (`resourceset-dex.yaml`). See [Dex clients](dex-clients.md).

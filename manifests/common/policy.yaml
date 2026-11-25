@@ -24,14 +24,9 @@
 # also covers the Deployments, ReplicaSets, Jobs and CronJobs kyverno
 # auto-generates the policy for, not just the pods.
 #
-# Migration: the kyverno.io/v2 exception further down is the pre-CEL one,
-# kept so patchy stays exempt on clusters still running the platform's
-# ClusterPolicy. It now also covers the auto-generated controller rules,
-# which it previously missed (every patchy Deployment and ReplicaSet was
-# reported failing). Remove it, and its test schema, once every cluster
-# runs the platform's ImageValidatingPolicy. Until then the two exceptions
-# coexist: a policies.kyverno.io exception naming a policy that doesn't
-# exist yet is inert, and vice versa.
+# The pre-CEL kyverno.io/v2 exception that used to ride alongside is gone:
+# Kyverno 1.20 no longer executes legacy policy types and rejects create or
+# update requests for them, so applying it failed the whole Kustomization.
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
@@ -45,33 +40,6 @@ spec:
     - name: patchy-namespaces
       expression: >-
         request.namespace in ['patchy', 'patchy-agents']
----
-apiVersion: kyverno.io/v2
-kind: PolicyException
-metadata:
-  name: patchy-images
-  namespace: kyverno
-spec:
-  exceptions:
-    - policyName: verify-platform-signature
-      ruleNames:
-        - verify-platform-signature
-        - autogen-verify-platform-signature
-        - autogen-cronjob-verify-platform-signature
-  match:
-    any:
-      - resources:
-          kinds:
-            - Pod
-            - Deployment
-            - ReplicaSet
-            - StatefulSet
-            - DaemonSet
-            - Job
-            - CronJob
-          namespaces:
-            - patchy
-            - patchy-agents
 ---
 # The policy rides a ResourceSet because two things follow cluster vars
 # and need a text template: the platform attestor SHAPE follows the
