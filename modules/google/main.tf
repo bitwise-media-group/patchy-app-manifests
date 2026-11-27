@@ -49,6 +49,11 @@ locals {
       patchy-github-app-private-key = "ns/patchy/sa/patchy-secrets"
       patchy-webhook-secret         = "ns/patchy/sa/patchy-secrets"
     },
+    # The App's client secret, synced into patchy-github only for Connect
+    # GitHub (github.client_id).
+    var.github.client_id != null ? {
+      patchy-github-client-secret = "ns/patchy/sa/patchy-secrets"
+    } : {},
     contains(var.harnesses, "claude") && !local.vertex ? {
       patchy-anthropic-token = "ns/patchy/sa/patchy-secrets"
     } : {},
@@ -65,6 +70,9 @@ locals {
     AGENT_EGRESS_POLICY = var.egress_policy
     PATCHY_EVALUATION   = var.evaluation.enabled ? "true" : "false"
     PATCHY_DOMAIN       = var.domain
+    # "true"/"false", and the client ID or "" when Connect GitHub is off
+    PATCHY_GITHUB_SECRET_SCANNING = var.github.secret_scanning ? "true" : "false"
+    PATCHY_GITHUB_CLIENT_ID       = var.github.client_id != null ? var.github.client_id : ""
 
     CLAUDE_PROVIDER          = var.claude.provider
     CLAUDE_ANTHROPIC_AUTH    = var.claude.anthropic_auth

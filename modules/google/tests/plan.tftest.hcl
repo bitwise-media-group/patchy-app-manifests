@@ -171,6 +171,7 @@ run "vars_mirror_aws" {
     condition = sort(keys(output.vars)) == tolist([
       "AGENT_EGRESS_POLICY", "AGENT_HARNESSES", "CLAUDE_ANTHROPIC_AUTH", "CLAUDE_MODEL_MAP", "CLAUDE_PROVIDER",
       "CLAUDE_VERTEX_PROJECT_ID", "CLAUDE_VERTEX_REGION", "PATCHY_DOMAIN", "PATCHY_EVALUATION",
+      "PATCHY_GITHUB_CLIENT_ID", "PATCHY_GITHUB_SECRET_SCANNING",
     ])
     error_message = "the patchy-vars key set mirrors modules/aws with the vertex pair in place of the bedrock pair"
   }
@@ -372,4 +373,64 @@ run "image_follows_the_edge_channel" {
     condition     = output.release == "application-patchy"
     error_message = "a bounded edge channel passes straight through to the seed"
   }
+}
+
+run "github_defaults_off" {
+  command = plan
+
+  assert {
+    condition     = output.vars.PATCHY_GITHUB_SECRET_SCANNING == "false" && output.vars.PATCHY_GITHUB_CLIENT_ID == ""
+    error_message = "secret scanning and Connect GitHub are opt-in: the literal false and an empty client ID by default"
+  }
+}
+
+run "github_capabilities" {
+  command = plan
+
+  variables {
+    github = { secret_scanning = true, client_id = "Iv23liEXAMPLE" }
+  }
+
+  assert {
+    condition     = output.vars.PATCHY_GITHUB_SECRET_SCANNING == "true" && output.vars.PATCHY_GITHUB_CLIENT_ID == "Iv23liEXAMPLE"
+    error_message = "the github capabilities publish the literal true and the App's client ID"
+  }
+
+  assert {
+    condition     = contains(keys(google_secret_manager_secret.main), "patchy-github-client-secret")
+    error_message = "Connect GitHub needs the App's client secret container, which the patchy-github sync reads"
+  }
+}
+
+run "github_secret_scanning_needs_no_container" {
+  command = plan
+
+  variables {
+    github = { secret_scanning = true }
+  }
+
+  assert {
+    condition     = !contains(keys(google_secret_manager_secret.main), "patchy-github-client-secret")
+    error_message = "the client secret container exists only for Connect GitHub; secret scanning rides the App's existing credential"
+  }
+}
+
+run "github_client_id_shape" {
+  command = plan
+
+  variables {
+    github = { client_id = "Iv23li EXAMPLE" }
+  }
+
+  expect_failures = [var.github]
+}
+
+run "extra_vars_cannot_shadow_github" {
+  command = plan
+
+  variables {
+    extra_vars = { PATCHY_GITHUB_CLIENT_ID = "Iv23liEXAMPLE" }
+  }
+
+  expect_failures = [var.extra_vars]
 }

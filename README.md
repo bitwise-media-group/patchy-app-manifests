@@ -128,6 +128,8 @@ key is application-owned; the manifests read the platform keys from `cluster-var
 | `AGENT_EGRESS_POLICY`                                          | `cilium` (aws default), `auto` (google default), `none`, `gke`, `istio`        |
 | `PATCHY_EVALUATION`                                            | `"true"` / `"false"`                                                           |
 | `PATCHY_DOMAIN`                                                | the served host; must equal the platform's `PLATFORM_DOMAIN`                   |
+| `PATCHY_GITHUB_SECRET_SCANNING`                                | `"true"` / `"false"`: the github Integration's secret-scanning ingestion       |
+| `PATCHY_GITHUB_CLIENT_ID`                                      | the App's client ID for Connect GitHub; `""` when off                          |
 | `CLAUDE_PROVIDER`, `CLAUDE_ANTHROPIC_AUTH`, `CLAUDE_MODEL_MAP` | the broker's provider knobs                                                    |
 | `CLAUDE_BEDROCK_REGION`, `CLAUDE_BEDROCK_REGION_PREFIX`        | aws only (google publishes `CLAUDE_VERTEX_REGION`, `CLAUDE_VERTEX_PROJECT_ID`) |
 

@@ -492,6 +492,25 @@ spec:
                   << end >>
                 codeScanningAlerts:
                   enabled: true
+                << if eq "${PATCHY_GITHUB_SECRET_SCANNING:=false}" "true" >>
+                # Leaked credentials, as secret-category findings (patchy
+                # 0.15.0+). The App needs the Secret scanning alerts
+                # permission and event; the value itself never enters patchy.
+                # A remediate verdict is always held for approval, since the
+                # real fix is rotation.
+                secretScanningAlerts:
+                  enabled: true
+                << end >>
+                << if ne "${PATCHY_GITHUB_CLIENT_ID:=}" "" >>
+                # "Connect GitHub" on the status page (patchy 0.16.0+): users
+                # link their GitHub account through this App, import the
+                # repositories they maintain, and act on those alone under
+                # the chart's maintainer role (rbac.yaml). The client ID is
+                # not secret; its clientSecret rides the patchy-github sync
+                # (the per-cloud overlay), gated on the same var.
+                userAuthorization:
+                  clientID: ${PATCHY_GITHUB_CLIENT_ID:=}
+                << end >>
           << if ne "${SCC_PUSH_SA:=}" "" >>
           # Security Command Center. Present only when terraform built the
           # pipeline (the google patchy root's scc.tf); SCC_PUSH_SA is the

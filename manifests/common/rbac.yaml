@@ -102,3 +102,43 @@ spec:
         name: ${RBAC_GROUP_DEVELOPERS}
     << end >>
     << end >>
+    << if ne "${PATCHY_GITHUB_CLIENT_ID:=}" "" >>
+    << if ne "${RBAC_GROUP_VIEWERS:=}" "" >>
+    ---
+    # Connect GitHub: viewers may backfill, approve and expedite on the
+    # repositories their linked GitHub account is admin or maintain on,
+    # checked live against GitHub on every action. The scoped verbs grant
+    # nothing without a link, and only the status page honours them.
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: patchy-viewers-maintainer
+      namespace: patchy
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: patchy-maintainer
+    subjects:
+      - kind: Group
+        apiGroup: rbac.authorization.k8s.io
+        name: ${RBAC_GROUP_VIEWERS}
+    << end >>
+    << if ne "${RBAC_GROUP_DEVELOPERS:=}" "" >>
+    ---
+    # developers already approve and expedite anywhere (findings-operator);
+    # this adds backfill on the repositories they maintain.
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: patchy-developers-maintainer
+      namespace: patchy
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: patchy-maintainer
+    subjects:
+      - kind: Group
+        apiGroup: rbac.authorization.k8s.io
+        name: ${RBAC_GROUP_DEVELOPERS}
+    << end >>
+    << end >>

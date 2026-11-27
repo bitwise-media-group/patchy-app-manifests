@@ -128,6 +128,31 @@ variable "evaluation" {
   }
 }
 
+variable "github" {
+  description = <<-EOT
+    The github Integration's optional capabilities, beside the issues and code-scanning ingestion it always has.
+      - secret_scanning: ingest the App's secret_scanning_alert deliveries as secret-category findings (patchy
+        0.15.0 or later), published as PATCHY_GITHUB_SECRET_SCANNING. The App needs the Secret scanning alerts
+        permission (read and write, to resolve confident ignores) and the Secret scanning alert event.
+      - client_id: the App's client ID (Iv23li...), which turns on "Connect GitHub" on the status page (patchy
+        0.16.0 or later), published as PATCHY_GITHUB_CLIENT_ID. It adds the patchy-github-client-secret container
+        (the App's client secret, synced as the Secret's clientSecret key) and binds the chart's maintainer role to
+        the viewers and developers groups. Register https://status.<domain>/oauth2/github/github/callback as a
+        callback URL on the App. Not secret: it lives in the Integration's spec.
+  EOT
+  type = object({
+    secret_scanning = optional(bool, false)
+    client_id       = optional(string)
+  })
+  nullable = false
+  default  = {}
+
+  validation {
+    condition     = var.github.client_id == null || can(regex("^[A-Za-z0-9.]+$", var.github.client_id))
+    error_message = "github.client_id must be a GitHub App client ID (letters, digits and dots, e.g. Iv23li...)."
+  }
+}
+
 variable "sso_enabled" {
   description = <<-EOT
     Whether the cluster deploys dex (terraform-google-gke-flux's sso.enabled). When on, the seed's Kustomization waits
@@ -191,7 +216,7 @@ variable "extra_vars" {
     Further patchy-vars keys merged beside the ones this module owns - the caller extras the manifests read with :=
     defaults (PATCHY_SEMVER for the chart range, PATCHY_FALLBACK_REPOSITORY, AGENT_EGRESS_BROAD, the SCC_* pipeline
     values from modules/scc-notifications, ...). Keys must be SCREAMING_SNAKE_CASE and must not be one of this
-    module's own keys (AGENT_HARNESSES, AGENT_EGRESS_POLICY, PATCHY_EVALUATION, PATCHY_DOMAIN, CLAUDE_*): set those through their own inputs.
+    module's own keys (AGENT_HARNESSES, AGENT_EGRESS_POLICY, PATCHY_EVALUATION, PATCHY_DOMAIN, PATCHY_GITHUB_*, CLAUDE_*): set those through their own inputs.
   EOT
   type        = map(string)
   nullable    = false
@@ -206,9 +231,10 @@ variable "extra_vars" {
     condition = alltrue([
       for key in keys(var.extra_vars) :
       !contains(["AGENT_HARNESSES", "AGENT_EGRESS_POLICY", "PATCHY_EVALUATION", "PATCHY_DOMAIN"], key)
+      && !startswith(key, "PATCHY_GITHUB_")
       && !startswith(key, "CLAUDE_")
     ])
-    error_message = "extra_vars must not set a key this module owns (AGENT_HARNESSES, AGENT_EGRESS_POLICY, PATCHY_EVALUATION, PATCHY_DOMAIN, CLAUDE_*) - use its input instead."
+    error_message = "extra_vars must not set a key this module owns (AGENT_HARNESSES, AGENT_EGRESS_POLICY, PATCHY_EVALUATION, PATCHY_DOMAIN, PATCHY_GITHUB_*, CLAUDE_*) - use its input instead."
   }
 }
 

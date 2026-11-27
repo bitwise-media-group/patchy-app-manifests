@@ -67,6 +67,13 @@ locals {
       patchy-webhook-secret         = "The patchy GitHub App's webhook secret"
     },
 
+    # The App's client secret, synced into patchy-github only for Connect
+    # GitHub (github.client_id): the integration-controller exchanges and
+    # refreshes the users' tokens with it.
+    var.github.client_id != null ? {
+      patchy-github-client-secret = "The patchy GitHub App's client secret (Connect GitHub)"
+    } : {},
+
     # The Anthropic credential, consumed by the egress broker in the patchy
     # namespace and only when the claude runner's provider is anthropic: a
     # bedrock cluster authenticates with the broker's Pod Identity and needs
@@ -113,6 +120,9 @@ locals {
     AGENT_EGRESS_POLICY = var.egress_policy
     PATCHY_EVALUATION   = var.evaluation.enabled ? "true" : "false"
     PATCHY_DOMAIN       = var.domain
+    # "true"/"false", and the client ID or "" when Connect GitHub is off
+    PATCHY_GITHUB_SECRET_SCANNING = var.github.secret_scanning ? "true" : "false"
+    PATCHY_GITHUB_CLIENT_ID       = var.github.client_id != null ? var.github.client_id : ""
 
     CLAUDE_PROVIDER              = var.claude.provider
     CLAUDE_ANTHROPIC_AUTH        = var.claude.anthropic_auth
